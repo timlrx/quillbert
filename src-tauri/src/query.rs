@@ -2,31 +2,11 @@ use llm::{
     builder::{LLMBackend, LLMBuilder},
     chain::{LLMRegistryBuilder, MultiChainStepBuilder, MultiChainStepMode, MultiPromptChain},
 };
-use serde::{Deserialize, Serialize};
-use std::{str::FromStr, sync::Mutex};
+use serde::Deserialize;
+use std::str::FromStr;
 use tauri::State;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProviderConfig {
-    pub name: String,
-    pub provider: String,
-    pub api_key: String,
-    pub model: String,
-    pub temperature: f32,
-    pub max_tokens: u32,
-}
-
-pub struct LLMConfigState {
-    configs: Mutex<Vec<ProviderConfig>>,
-}
-
-impl Default for LLMConfigState {
-    fn default() -> Self {
-        Self {
-            configs: Mutex::new(Vec::new()),
-        }
-    }
-}
+use crate::settings::{LLMConfigState, ProviderConfig};
 
 #[derive(Debug, Deserialize)]
 pub struct PromptRequest {
@@ -35,8 +15,6 @@ pub struct PromptRequest {
     max_tokens: u32,
 }
 
-/// Parse the LLM backend provider string into an LLMBackend enum
-/// Temporary workaround as the default FromStr implementation not does include google
 pub fn parse_llm_backend(provider: &str) -> Result<LLMBackend, String> {
     match provider.to_lowercase().as_str() {
         "google" => Ok(LLMBackend::Google),
@@ -50,12 +28,14 @@ pub async fn register_llm(
     config: ProviderConfig,
 ) -> Result<String, String> {
     println!("Registering LLM config: {:?}", config);
+
     // Check if the provider is valid
     parse_llm_backend(&config.provider)?;
 
-    // Store the config
-    let mut configs = state.configs.lock().map_err(|e| e.to_string())?;
+    // Load the current configs, add the new one, and save the updated list
+    let mut configs = state.load_configs().map_err(|e| e.to_string())?;
     configs.push(config);
+    state.save_configs(configs).map_err(|e| e.to_string())?;
 
     Ok("LLM configuration registered successfully".to_string())
 }
@@ -64,8 +44,7 @@ pub async fn register_llm(
 pub async fn get_llm_configs(
     state: State<'_, LLMConfigState>,
 ) -> Result<Vec<ProviderConfig>, String> {
-    let configs = state.configs.lock().map_err(|e| e.to_string())?;
-    Ok(configs.clone())
+    state.load_configs().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -78,7 +57,7 @@ pub async fn submit_prompt(
 
     // Get and clone the config
     let config = {
-        let configs = state.configs.lock().map_err(|e| e.to_string())?;
+        let configs = state.load_configs().map_err(|e| e.to_string())?;
         configs
             .iter()
             .find(|c| c.name == config_name)
@@ -89,7 +68,6 @@ pub async fn submit_prompt(
     let result = tauri::async_runtime::spawn_blocking(move || {
         let backend = parse_llm_backend(&config.provider)?;
 
-        // Create and use LLM instance within the same thread
         let llm = LLMBuilder::new()
             .backend(backend)
             .api_key(&config.api_key)

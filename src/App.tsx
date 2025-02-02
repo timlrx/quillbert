@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Edit2, Plus, Trash2 } from "lucide-react";
 import "./App.css";
@@ -37,6 +37,24 @@ const LLMConfigurationManager: React.FC = () => {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
+  const [initialLoading, setInitialLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    loadConfigs();
+  }, []);
+
+  const loadConfigs = async () => {
+    try {
+      setInitialLoading(true);
+      const savedConfigs = await invoke<LLMConfig[]>("get_llm_configs");
+      setConfigs(savedConfigs);
+    } catch (err) {
+      console.error("Error loading configurations:", err);
+      setError(typeof err === "string" ? err : "Failed to load configurations");
+    } finally {
+      setInitialLoading(false);
+    }
+  };
 
   const handleConfigChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -77,15 +95,8 @@ const LLMConfigurationManager: React.FC = () => {
 
     try {
       await invoke("register_llm", { config: currentConfig });
-
-      if (editingIndex !== null) {
-        setConfigs((prev) =>
-          prev.map((cfg, idx) => (idx === editingIndex ? currentConfig : cfg))
-        );
-      } else {
-        setConfigs((prev) => [...prev, currentConfig]);
-      }
-
+      // Reload configs from backend to ensure we have the latest state
+      await loadConfigs();
       setCurrentConfig(defaultConfig);
       setEditingIndex(null);
     } catch (error) {
@@ -104,11 +115,29 @@ const LLMConfigurationManager: React.FC = () => {
     setError("");
   };
 
-  const handleDeleteConfig = (index: number): void => {
-    setConfigs((prev) => prev.filter((_, idx) => idx !== index));
-    if (editingIndex === index) {
-      setEditingIndex(null);
-      setCurrentConfig(defaultConfig);
+  const handleDeleteConfig = async (index: number): Promise<void> => {
+    try {
+      // Create new array without the deleted config
+      const updatedConfigs = configs.filter((_, idx) => idx !== index);
+
+      // Save all remaining configs
+      // Note: Since we don't have a separate delete command, we'll re-save all configs
+      for (const config of updatedConfigs) {
+        await invoke("register_llm", { config });
+      }
+
+      // Reload configs from backend
+      await loadConfigs();
+
+      if (editingIndex === index) {
+        setEditingIndex(null);
+        setCurrentConfig(defaultConfig);
+      }
+    } catch (error) {
+      console.error("Error deleting configuration:", error);
+      setError(
+        typeof error === "string" ? error : "Failed to delete configuration"
+      );
     }
   };
 
@@ -117,6 +146,18 @@ const LLMConfigurationManager: React.FC = () => {
     setEditingIndex(null);
     setError("");
   };
+
+  if (initialLoading) {
+    return (
+      <div className="container mx-auto px-4 py-8 max-w-4xl">
+        <div className="bg-white rounded-lg shadow-lg p-6">
+          <div className="flex items-center justify-center h-32">
+            <div className="text-gray-500">Loading configurations...</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <main className="container mx-auto px-4 py-8 max-w-4xl">

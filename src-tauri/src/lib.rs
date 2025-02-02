@@ -1,4 +1,5 @@
 mod query;
+mod settings;
 use enigo::{
     Direction::{Click, Press, Release},
     Enigo, Key, Keyboard, Settings,
@@ -180,7 +181,6 @@ pub fn setup_system_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Erro
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
-        .manage(query::LLMConfigState::default())
         .on_window_event(|window, event| match event {
             tauri::WindowEvent::CloseRequested { api, .. } => {
                 window.hide().unwrap();
@@ -198,6 +198,9 @@ pub fn run() {
             //     .set_position(tauri::LogicalPosition::new(0.0, 0.0))
             //     .unwrap();
             println!("Setting up app...");
+            let llm_config_state = settings::LLMConfigState::new(&app.app_handle())
+                .expect("Failed to initialize LLM config state");
+            app.manage(llm_config_state);
             setup_system_tray(&app.app_handle())?;
             Ok(())
         })
