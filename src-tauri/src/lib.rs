@@ -1,3 +1,4 @@
+mod query;
 use enigo::{
     Direction::{Click, Press, Release},
     Enigo, Key, Keyboard, Settings,
@@ -46,7 +47,7 @@ fn get_cursor_position<R: tauri::Runtime>(
 #[cfg(desktop)]
 fn setup_global_shortcuts<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
     tauri_plugin_global_shortcut::Builder::new()
-        .with_shortcuts(["ctrl+d", "shift+k", "shift+j", "cmd+shift+k", "esc"])
+        .with_shortcuts(["ctrl+d", "shift+k", "shift+j", "cmd+shift+k"])
         .unwrap()
         .with_handler(|app, shortcut, event| {
             if event.state == ShortcutState::Pressed {
@@ -179,6 +180,7 @@ pub fn setup_system_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Erro
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
+        .manage(query::LLMConfigState::default())
         .on_window_event(|window, event| match event {
             tauri::WindowEvent::CloseRequested { api, .. } => {
                 window.hide().unwrap();
@@ -199,7 +201,12 @@ pub fn run() {
             setup_system_tray(&app.app_handle())?;
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![greet])
+        .invoke_handler(tauri::generate_handler![
+            greet,
+            query::submit_prompt,
+            query::register_llm,
+            query::get_llm_configs
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

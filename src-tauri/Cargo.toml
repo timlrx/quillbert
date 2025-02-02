@@ -24,6 +24,17 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 enigo = "0.3.0"
 tauri-plugin-clipboard-manager = "2.2.0"
+llm = { version = "1.0.4", features = [
+    "openai",
+    "anthropic",
+    "ollama",
+    "deepseek",
+    "xai",
+    "phind",
+    "google",
+    "groq",
+] }
+
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-global-shortcut = "2"
