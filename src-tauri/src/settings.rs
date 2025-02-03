@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::RwLock;
 use tauri::Manager;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -26,7 +26,7 @@ pub struct UIConfig {
     pub theme: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
     pub llm_providers: Vec<ProviderConfig>,
     pub actions: Vec<Action>,
@@ -53,18 +53,30 @@ impl Default for Settings {
 
 pub struct SettingsManager {
     config_path: PathBuf,
+    settings: RwLock<Settings>,
 }
 
 impl SettingsManager {
     pub fn new(app_handle: &tauri::AppHandle) -> Result<Self, Box<dyn std::error::Error>> {
         let config_dir = app_handle.path().app_config_dir().unwrap();
-
-        // Create config directory if it doesn't exist
         fs::create_dir_all(&config_dir)?;
-
         let config_path = config_dir.join("settings.json");
 
-        Ok(Self { config_path })
+        // Load or create initial settings
+        let settings = if config_path.exists() {
+            let contents = fs::read_to_string(&config_path)?;
+            serde_json::from_str(&contents)?
+        } else {
+            let default_settings = Settings::default();
+            let contents = serde_json::to_string_pretty(&default_settings)?;
+            fs::write(&config_path, contents)?;
+            default_settings
+        };
+
+        Ok(Self {
+            config_path,
+            settings: RwLock::new(settings),
+        })
     }
 
     fn validate_settings(&self, settings: &Settings) -> Result<(), Box<dyn std::error::Error>> {
@@ -103,7 +115,6 @@ impl SettingsManager {
             }
         }
 
-        // Validate UI config
         if settings.ui.theme.is_empty() {
             return Err("Invalid UI configuration: theme cannot be empty".into());
         }
@@ -111,94 +122,71 @@ impl SettingsManager {
         Ok(())
     }
 
-    pub fn save(&self, settings: &Settings) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn save(&self, new_settings: Settings) -> Result<(), Box<dyn std::error::Error>> {
         // Validate before saving
-        self.validate_settings(settings)?;
+        self.validate_settings(&new_settings)?;
 
-        let contents = serde_json::to_string_pretty(settings)?;
+        // Write to file first
+        let contents = serde_json::to_string_pretty(&new_settings)?;
         fs::write(&self.config_path, contents)?;
+
+        // Update memory only after successful file write
+        let mut settings = self.settings.write().map_err(|e| e.to_string())?;
+        *settings = new_settings;
+
         Ok(())
     }
 
-    pub fn load(&self) -> Result<Settings, Box<dyn std::error::Error>> {
-        if self.config_path.exists() {
-            let contents = fs::read_to_string(&self.config_path)?;
-            let settings: Settings = serde_json::from_str(&contents)?;
-
-            // Validate settings
-            self.validate_settings(&settings)?;
-
-            Ok(settings)
-        } else {
-            Ok(Settings::default())
-        }
+    pub fn get_settings(&self) -> Result<Settings, Box<dyn std::error::Error>> {
+        Ok(self.settings.read().map_err(|e| e.to_string())?.clone())
     }
 }
 
-pub struct LLMConfigState {
-    settings_manager: Mutex<SettingsManager>,
+pub struct AppState {
+    settings_manager: SettingsManager,
 }
 
-impl LLMConfigState {
+impl AppState {
     pub fn new(app_handle: &tauri::AppHandle) -> Result<Self, Box<dyn std::error::Error>> {
         let manager = SettingsManager::new(app_handle)?;
-
-        // Try to load existing settings
-        if manager.config_path.exists() {
-            println!("Found existing settings at {:?}", manager.config_path);
-        } else {
-            println!("No existing settings found, creating new settings file");
-            // Create default settings file
-            manager.save(&Settings::default())?;
-        }
-
         Ok(Self {
-            settings_manager: Mutex::new(manager),
+            settings_manager: manager,
         })
     }
 
-    pub fn load_configs(&self) -> Result<Vec<ProviderConfig>, Box<dyn std::error::Error>> {
-        let manager = self.settings_manager.lock().map_err(|e| e.to_string())?;
-        let settings = manager.load()?;
-        Ok(settings.llm_providers)
+    pub fn read_llm_providers(&self) -> Result<Vec<ProviderConfig>, Box<dyn std::error::Error>> {
+        Ok(self.settings_manager.get_settings()?.llm_providers)
     }
 
-    pub fn save_configs(
+    pub fn update_llm_providers(
         &self,
         configs: Vec<ProviderConfig>,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let manager = self.settings_manager.lock().map_err(|e| e.to_string())?;
-        let mut settings = manager.load()?;
+        let mut settings = self.settings_manager.get_settings()?;
         settings.llm_providers = configs;
-        manager.save(&settings)?;
+        self.settings_manager.save(settings)?;
         Ok(())
     }
 
-    pub fn load_actions(&self) -> Result<Vec<Action>, Box<dyn std::error::Error>> {
-        let manager = self.settings_manager.lock().map_err(|e| e.to_string())?;
-        let settings = manager.load()?;
-        Ok(settings.actions)
+    pub fn read_actions(&self) -> Result<Vec<Action>, Box<dyn std::error::Error>> {
+        Ok(self.settings_manager.get_settings()?.actions)
     }
 
-    pub fn save_actions(&self, actions: Vec<Action>) -> Result<(), Box<dyn std::error::Error>> {
-        let manager = self.settings_manager.lock().map_err(|e| e.to_string())?;
-        let mut settings = manager.load()?;
+    pub fn update_actions(&self, actions: Vec<Action>) -> Result<(), Box<dyn std::error::Error>> {
+        let mut settings = self.settings_manager.get_settings()?;
         settings.actions = actions;
-        manager.save(&settings)?;
+        self.settings_manager.save(settings)?;
         Ok(())
     }
 
-    pub fn get_ui_config(&self) -> Result<UIConfig, Box<dyn std::error::Error>> {
-        let manager = self.settings_manager.lock().map_err(|e| e.to_string())?;
-        let settings = manager.load()?;
-        Ok(settings.ui)
+    pub fn read_ui_config(&self) -> Result<UIConfig, Box<dyn std::error::Error>> {
+        Ok(self.settings_manager.get_settings()?.ui)
     }
 
     pub fn update_ui_config(&self, ui_config: UIConfig) -> Result<(), Box<dyn std::error::Error>> {
-        let manager = self.settings_manager.lock().map_err(|e| e.to_string())?;
-        let mut settings = manager.load()?;
+        let mut settings = self.settings_manager.get_settings()?;
         settings.ui = ui_config;
-        manager.save(&settings)?;
+        self.settings_manager.save(settings)?;
         Ok(())
     }
 }

@@ -198,9 +198,9 @@ pub fn run() {
             //     .set_position(tauri::LogicalPosition::new(0.0, 0.0))
             //     .unwrap();
             println!("Setting up app...");
-            let llm_config_state = settings::LLMConfigState::new(&app.app_handle())
+            let app_state = settings::AppState::new(&app.app_handle())
                 .expect("Failed to initialize LLM config state");
-            app.manage(llm_config_state);
+            app.manage(app_state);
             setup_system_tray(&app.app_handle())?;
             Ok(())
         })

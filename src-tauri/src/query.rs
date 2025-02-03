@@ -6,7 +6,7 @@ use serde::Deserialize;
 use std::str::FromStr;
 use tauri::State;
 
-use crate::settings::{LLMConfigState, ProviderConfig};
+use crate::settings::{AppState, ProviderConfig};
 
 #[derive(Debug, Deserialize)]
 pub struct PromptRequest {
@@ -24,7 +24,7 @@ pub fn parse_llm_backend(provider: &str) -> Result<LLMBackend, String> {
 
 #[tauri::command]
 pub async fn register_llm(
-    state: State<'_, LLMConfigState>,
+    state: State<'_, AppState>,
     config: ProviderConfig,
 ) -> Result<String, String> {
     println!("Registering LLM config: {:?}", config);
@@ -33,23 +33,23 @@ pub async fn register_llm(
     parse_llm_backend(&config.provider)?;
 
     // Load the current configs, add the new one, and save the updated list
-    let mut configs = state.load_configs().map_err(|e| e.to_string())?;
+    let mut configs = state.read_llm_providers().map_err(|e| e.to_string())?;
     configs.push(config);
-    state.save_configs(configs).map_err(|e| e.to_string())?;
+    state
+        .update_llm_providers(configs)
+        .map_err(|e| e.to_string())?;
 
     Ok("LLM configuration registered successfully".to_string())
 }
 
 #[tauri::command]
-pub async fn get_llm_configs(
-    state: State<'_, LLMConfigState>,
-) -> Result<Vec<ProviderConfig>, String> {
-    state.load_configs().map_err(|e| e.to_string())
+pub async fn get_llm_configs(state: State<'_, AppState>) -> Result<Vec<ProviderConfig>, String> {
+    state.read_llm_providers().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn submit_prompt(
-    state: State<'_, LLMConfigState>,
+    state: State<'_, AppState>,
     config_name: String,
     request: PromptRequest,
 ) -> Result<String, String> {
@@ -57,7 +57,7 @@ pub async fn submit_prompt(
 
     // Get and clone the config
     let config = {
-        let configs = state.load_configs().map_err(|e| e.to_string())?;
+        let configs = state.read_llm_providers().map_err(|e| e.to_string())?;
         configs
             .iter()
             .find(|c| c.name == config_name)
