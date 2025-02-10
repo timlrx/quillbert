@@ -1,6 +1,12 @@
+use llm::{
+    builder::{LLMBackend, LLMBuilder},
+    chat::{ChatMessage, ChatRole},
+    LLMProvider,
+};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::RwLock;
 use tauri::Manager;
 
@@ -140,6 +146,40 @@ impl SettingsManager {
     pub fn get_settings(&self) -> Result<Settings, Box<dyn std::error::Error>> {
         Ok(self.settings.read().map_err(|e| e.to_string())?.clone())
     }
+
+    pub fn get_llm_config(&self, name: &str) -> Result<ProviderConfig, Box<dyn std::error::Error>> {
+        let settings = self.settings.read().map_err(|e| e.to_string())?;
+        settings
+            .llm_providers
+            .iter()
+            .find(|p| p.name == name)
+            .cloned()
+            .ok_or_else(|| "LLM configuration not found".into())
+    }
+
+    pub fn add_llm_config(&self, config: ProviderConfig) -> Result<(), Box<dyn std::error::Error>> {
+        // Update in-memory settings
+        let settings = {
+            let mut guard = self.settings.write().map_err(|e| e.to_string())?;
+            guard.llm_providers.retain(|p| p.name != config.name);
+            guard.llm_providers.push(config);
+            (*guard).clone()
+        };
+
+        let contents = serde_json::to_string_pretty(&settings)?;
+        fs::write(&self.config_path, contents)?;
+
+        Ok(())
+    }
+
+    pub fn get_all_llm_configs(&self) -> Result<Vec<ProviderConfig>, Box<dyn std::error::Error>> {
+        Ok(self
+            .settings
+            .read()
+            .map_err(|e| e.to_string())?
+            .llm_providers
+            .clone())
+    }
 }
 
 pub struct AppState {
@@ -148,24 +188,75 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(app_handle: &tauri::AppHandle) -> Result<Self, Box<dyn std::error::Error>> {
-        let manager = SettingsManager::new(app_handle)?;
         Ok(Self {
-            settings_manager: manager,
+            settings_manager: SettingsManager::new(app_handle)?,
         })
     }
 
-    pub fn read_llm_providers(&self) -> Result<Vec<ProviderConfig>, Box<dyn std::error::Error>> {
-        Ok(self.settings_manager.get_settings()?.llm_providers)
+    fn parse_llm_backend(provider: &str) -> Result<LLMBackend, String> {
+        match provider.to_lowercase().as_str() {
+            "google" => Ok(LLMBackend::Google),
+            provider => LLMBackend::from_str(provider).map_err(|e| e.to_string()),
+        }
     }
 
-    pub fn update_llm_providers(
+    fn create_llm_instance(config: &ProviderConfig) -> Result<Box<dyn LLMProvider>, String> {
+        let backend = Self::parse_llm_backend(&config.provider)?;
+
+        LLMBuilder::new()
+            .backend(backend)
+            .api_key(&config.api_key)
+            .model(&config.model)
+            .temperature(config.temperature)
+            .max_tokens(config.max_tokens)
+            .build()
+            .map_err(|e| e.to_string())
+    }
+
+    pub async fn register_llm(
         &self,
-        configs: Vec<ProviderConfig>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let mut settings = self.settings_manager.get_settings()?;
-        settings.llm_providers = configs;
-        self.settings_manager.save(settings)?;
+        config: ProviderConfig,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        // Test that we can create an instance
+        Self::create_llm_instance(&config)
+            .map_err(|e| Box::<dyn std::error::Error + Send + Sync>::from(e))?;
+
+        // If LLM creation succeeded, update configs
+        self.settings_manager
+            .add_llm_config(config)
+            .map_err(|e| Box::<dyn std::error::Error + Send + Sync>::from(e.to_string()))?;
+
         Ok(())
+    }
+
+    pub async fn submit_prompt(
+        &self,
+        config_name: &str,
+        prompt: String,
+    ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+        // Get the config
+        let config = self
+            .settings_manager
+            .get_llm_config(config_name)
+            .map_err(|e| Box::<dyn std::error::Error + Send + Sync>::from(e.to_string()))?;
+
+        // Create message
+        let messages = vec![ChatMessage {
+            role: ChatRole::User,
+            content: prompt,
+        }];
+
+        // Create LLM instance and submit prompt
+        let llm = Self::create_llm_instance(&config)
+            .map_err(|e| Box::<dyn std::error::Error + Send + Sync>::from(e))?;
+
+        llm.chat(&messages)
+            .await
+            .map_err(|e| Box::<dyn std::error::Error + Send + Sync>::from(e.to_string()))
+    }
+
+    pub fn get_llm_configs(&self) -> Result<Vec<ProviderConfig>, Box<dyn std::error::Error>> {
+        self.settings_manager.get_all_llm_configs()
     }
 
     pub fn read_actions(&self) -> Result<Vec<Action>, Box<dyn std::error::Error>> {
