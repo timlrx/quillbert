@@ -21,21 +21,35 @@ pub struct ProviderConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Action {
-    pub llm_provider_name: String,
-    pub prompt: String,
+pub struct ShortcutConfig {
+    pub name: String,
     pub shortcut: String,
+    pub command: CommandType,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum CommandType {
+    ToggleWindow,
+    GetCursorPosition,
+    GetSelectedText,
+    PrintHello,
+    Prompt {
+        provider_name: String,
+        prompt: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UIConfig {
     pub theme: String,
+    pub window_position: Option<(i32, i32)>,
+    pub window_size: Option<(u32, u32)>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
     pub llm_providers: Vec<ProviderConfig>,
-    pub actions: Vec<Action>,
+    pub shortcuts: Vec<ShortcutConfig>,
     pub ui: UIConfig,
 }
 
@@ -43,6 +57,8 @@ impl Default for UIConfig {
     fn default() -> Self {
         Self {
             theme: "light".to_string(),
+            window_position: None,
+            window_size: None,
         }
     }
 }
@@ -51,7 +67,28 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             llm_providers: Vec::new(),
-            actions: Vec::new(),
+            shortcuts: vec![
+                ShortcutConfig {
+                    name: "Toggle Window".to_string(),
+                    shortcut: "cmd+shift+k".to_string(),
+                    command: CommandType::ToggleWindow,
+                },
+                ShortcutConfig {
+                    name: "Get Cursor Position".to_string(),
+                    shortcut: "shift+k".to_string(),
+                    command: CommandType::GetCursorPosition,
+                },
+                ShortcutConfig {
+                    name: "Get Selected Text".to_string(),
+                    shortcut: "shift+j".to_string(),
+                    command: CommandType::GetSelectedText,
+                },
+                ShortcutConfig {
+                    name: "Print Hello".to_string(),
+                    shortcut: "shift+h".to_string(),
+                    command: CommandType::PrintHello,
+                },
+            ],
             ui: UIConfig::default(),
         }
     }
@@ -85,53 +122,7 @@ impl SettingsManager {
         })
     }
 
-    fn validate_settings(&self, settings: &Settings) -> Result<(), Box<dyn std::error::Error>> {
-        // Validate providers
-        for provider in &settings.llm_providers {
-            if provider.name.is_empty()
-                || provider.provider.is_empty()
-                || provider.api_key.is_empty()
-            {
-                return Err("Invalid provider configuration: missing required fields".into());
-            }
-        }
-
-        // Validate actions
-        let provider_names: Vec<String> = settings
-            .llm_providers
-            .iter()
-            .map(|p| p.name.clone())
-            .collect();
-
-        for action in &settings.actions {
-            if action.prompt.is_empty() {
-                return Err("Invalid action: prompt cannot be empty".into());
-            }
-
-            if action.shortcut.is_empty() {
-                return Err("Invalid action: shortcut cannot be empty".into());
-            }
-
-            if !provider_names.contains(&action.llm_provider_name) {
-                return Err(format!(
-                    "Invalid action: provider '{}' not found in configured providers",
-                    action.llm_provider_name
-                )
-                .into());
-            }
-        }
-
-        if settings.ui.theme.is_empty() {
-            return Err("Invalid UI configuration: theme cannot be empty".into());
-        }
-
-        Ok(())
-    }
-
     pub fn save(&self, new_settings: Settings) -> Result<(), Box<dyn std::error::Error>> {
-        // Validate before saving
-        self.validate_settings(&new_settings)?;
-
         // Write to file first
         let contents = serde_json::to_string_pretty(&new_settings)?;
         fs::write(&self.config_path, contents)?;
@@ -147,6 +138,26 @@ impl SettingsManager {
         Ok(self.settings.read().map_err(|e| e.to_string())?.clone())
     }
 
+    pub fn get_shortcuts(&self) -> Result<Vec<ShortcutConfig>, Box<dyn std::error::Error>> {
+        Ok(self
+            .settings
+            .read()
+            .map_err(|e| e.to_string())?
+            .shortcuts
+            .clone())
+    }
+
+    pub fn update_shortcuts(
+        &self,
+        shortcuts: Vec<ShortcutConfig>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let mut settings = self.settings.write().map_err(|e| e.to_string())?;
+        settings.shortcuts = shortcuts;
+        let contents = serde_json::to_string_pretty(&*settings)?;
+        fs::write(&self.config_path, contents)?;
+        Ok(())
+    }
+
     pub fn get_llm_config(&self, name: &str) -> Result<ProviderConfig, Box<dyn std::error::Error>> {
         let settings = self.settings.read().map_err(|e| e.to_string())?;
         settings
@@ -158,17 +169,11 @@ impl SettingsManager {
     }
 
     pub fn add_llm_config(&self, config: ProviderConfig) -> Result<(), Box<dyn std::error::Error>> {
-        // Update in-memory settings
-        let settings = {
-            let mut guard = self.settings.write().map_err(|e| e.to_string())?;
-            guard.llm_providers.retain(|p| p.name != config.name);
-            guard.llm_providers.push(config);
-            (*guard).clone()
-        };
-
-        let contents = serde_json::to_string_pretty(&settings)?;
+        let mut settings = self.settings.write().map_err(|e| e.to_string())?;
+        settings.llm_providers.retain(|p| p.name != config.name);
+        settings.llm_providers.push(config);
+        let contents = serde_json::to_string_pretty(&*settings)?;
         fs::write(&self.config_path, contents)?;
-
         Ok(())
     }
 
@@ -180,10 +185,18 @@ impl SettingsManager {
             .llm_providers
             .clone())
     }
+
+    pub fn update_ui_config(&self, ui_config: UIConfig) -> Result<(), Box<dyn std::error::Error>> {
+        let mut settings = self.settings.write().map_err(|e| e.to_string())?;
+        settings.ui = ui_config;
+        let contents = serde_json::to_string_pretty(&*settings)?;
+        fs::write(&self.config_path, contents)?;
+        Ok(())
+    }
 }
 
 pub struct AppState {
-    settings_manager: SettingsManager,
+    pub settings_manager: SettingsManager,
 }
 
 impl AppState {
@@ -191,26 +204,6 @@ impl AppState {
         Ok(Self {
             settings_manager: SettingsManager::new(app_handle)?,
         })
-    }
-
-    fn parse_llm_backend(provider: &str) -> Result<LLMBackend, String> {
-        match provider.to_lowercase().as_str() {
-            "google" => Ok(LLMBackend::Google),
-            provider => LLMBackend::from_str(provider).map_err(|e| e.to_string()),
-        }
-    }
-
-    fn create_llm_instance(config: &ProviderConfig) -> Result<Box<dyn LLMProvider>, String> {
-        let backend = Self::parse_llm_backend(&config.provider)?;
-
-        LLMBuilder::new()
-            .backend(backend)
-            .api_key(&config.api_key)
-            .model(&config.model)
-            .temperature(config.temperature)
-            .max_tokens(config.max_tokens)
-            .build()
-            .map_err(|e| e.to_string())
     }
 
     pub async fn register_llm(
@@ -231,53 +224,44 @@ impl AppState {
 
     pub async fn submit_prompt(
         &self,
-        config_name: &str,
+        provider_name: &str,
         prompt: String,
-    ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-        // Get the config
-        let config = self
-            .settings_manager
-            .get_llm_config(config_name)
-            .map_err(|e| Box::<dyn std::error::Error + Send + Sync>::from(e.to_string()))?;
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        // Get provider config
+        let config = self.settings_manager.get_llm_config(provider_name)?;
 
-        // Create message
+        // Create LLM instance and submit prompt
+        let llm = Self::create_llm_instance(&config)?;
+
+        // Convert to chat message format
         let messages = vec![ChatMessage {
             role: ChatRole::User,
             content: prompt,
         }];
 
-        // Create LLM instance and submit prompt
-        let llm = Self::create_llm_instance(&config)
-            .map_err(|e| Box::<dyn std::error::Error + Send + Sync>::from(e))?;
-
+        // Submit to LLM
         llm.chat(&messages)
             .await
-            .map_err(|e| Box::<dyn std::error::Error + Send + Sync>::from(e.to_string()))
+            .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))
     }
 
     pub fn get_llm_configs(&self) -> Result<Vec<ProviderConfig>, Box<dyn std::error::Error>> {
         self.settings_manager.get_all_llm_configs()
     }
 
-    pub fn read_actions(&self) -> Result<Vec<Action>, Box<dyn std::error::Error>> {
-        Ok(self.settings_manager.get_settings()?.actions)
-    }
+    fn create_llm_instance(config: &ProviderConfig) -> Result<Box<dyn LLMProvider>, String> {
+        let backend = match config.provider.to_lowercase().as_str() {
+            "google" => Ok(LLMBackend::Google),
+            provider => LLMBackend::from_str(provider).map_err(|e| e.to_string()),
+        }?;
 
-    pub fn update_actions(&self, actions: Vec<Action>) -> Result<(), Box<dyn std::error::Error>> {
-        let mut settings = self.settings_manager.get_settings()?;
-        settings.actions = actions;
-        self.settings_manager.save(settings)?;
-        Ok(())
-    }
-
-    pub fn read_ui_config(&self) -> Result<UIConfig, Box<dyn std::error::Error>> {
-        Ok(self.settings_manager.get_settings()?.ui)
-    }
-
-    pub fn update_ui_config(&self, ui_config: UIConfig) -> Result<(), Box<dyn std::error::Error>> {
-        let mut settings = self.settings_manager.get_settings()?;
-        settings.ui = ui_config;
-        self.settings_manager.save(settings)?;
-        Ok(())
+        LLMBuilder::new()
+            .backend(backend)
+            .api_key(&config.api_key)
+            .model(&config.model)
+            .temperature(config.temperature)
+            .max_tokens(config.max_tokens)
+            .build()
+            .map_err(|e| e.to_string())
     }
 }
