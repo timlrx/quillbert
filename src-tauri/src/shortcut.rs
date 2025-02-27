@@ -37,6 +37,7 @@ pub fn enable_shortcuts(app: &App) {
                         if let Some((_, command, _scut)) =
                             shortcuts_for_handler.iter().find(|(_, _, s)| shortcut == s)
                         {
+                            println!("Shortcut pressed: {:?}", shortcut);
                             handle_shortcut_commands(app, command);
                         }
                     }
@@ -53,21 +54,9 @@ pub fn enable_shortcuts(app: &App) {
 /// Handle different shortcut commands
 fn handle_shortcut_commands<R: Runtime>(app: &AppHandle<R>, command: &CommandType) {
     match command {
-        CommandType::ToggleWindow => match app.webview_windows().get("focus") {
-            Some(window) => match window.is_visible().unwrap() {
-                true => {
-                    window.hide().unwrap();
-                    println!("Window hidden");
-                }
-                false => {
-                    commands::new_window_or_focus(app).unwrap();
-                }
-            },
-            None => {
-                println!("New window in focus");
-                commands::new_window_or_focus(app).unwrap();
-            }
-        },
+        CommandType::ToggleWindow => {
+            commands::toggle_window(app).unwrap();
+        }
         CommandType::GetCursorPosition => {
             let pos = commands::get_cursor_position(app).unwrap();
             println!("App cursor position: {:?}", pos);
@@ -174,7 +163,14 @@ pub async fn update_shortcut<R: Runtime>(
         .map_err(|e| e.to_string())?;
 
     app.global_shortcut()
-        .register(shortcut)
+        .on_shortcut(shortcut, move |app, scut, event| {
+            if scut == &shortcut {
+                if event.state() == ShortcutState::Pressed {
+                    println!("Shortcut pressed: {:?}", scut);
+                    handle_shortcut_commands(app, &shortcut_config.command);
+                }
+            }
+        })
         .map_err(|e| e.to_string())?;
 
     Ok(())
