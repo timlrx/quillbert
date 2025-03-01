@@ -92,6 +92,18 @@ fn handle_shortcut_commands<R: Runtime>(app: &AppHandle<R>, command: &CommandTyp
             provider_name,
             prompt,
         } => {
+            // Check if the focus window is active before executing prompt shortcuts
+            let focus_window = app.get_window("focus");
+            let is_focused = focus_window
+                .as_ref()
+                .and_then(|w| w.is_focused().ok())
+                .unwrap_or(false);
+                
+            if !is_focused {
+                println!("Prompt shortcut ignored: focus window not active");
+                return;
+            }
+            
             let state = app.state::<AppState>();
             let selected_text = state.selected_text.blocking_read().clone();
             
