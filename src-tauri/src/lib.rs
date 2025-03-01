@@ -89,6 +89,8 @@ pub fn run() {
             query::submit_prompt,
             query::register_llm,
             query::get_llm_configs,
+            query::register_custom_prompt,
+            query::get_custom_prompts,
             shortcut::get_shortcuts,
             shortcut::unregister_shortcut,
             shortcut::update_shortcut,
