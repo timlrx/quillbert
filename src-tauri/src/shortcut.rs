@@ -93,9 +93,8 @@ fn handle_shortcut_commands<R: Runtime>(app: &AppHandle<R>, command: &CommandTyp
             prompt,
         } => {
             // Check if the focus window is active before executing prompt shortcuts
-            let focus_window = app.get_window("focus");
+            let focus_window = app.windows().get("focus");
             let is_focused = focus_window
-                .as_ref()
                 .and_then(|w| w.is_focused().ok())
                 .unwrap_or(false);
                 
