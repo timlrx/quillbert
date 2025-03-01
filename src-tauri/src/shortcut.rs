@@ -80,6 +80,15 @@ fn handle_shortcut_commands<R: Runtime>(app: &AppHandle<R>, command: &CommandTyp
             provider_name,
             prompt,
         } => {
+            // Check if focus window exists and is focused
+            let should_proceed = app.get_window("focus")
+                .map(|w| w.is_focused().unwrap_or(false))
+                .unwrap_or(false);
+
+            if !should_proceed {
+                return;
+            }
+
             // Get the selected text
             match commands::get_selected_text(app) {
                 Ok(selected_text) => {
