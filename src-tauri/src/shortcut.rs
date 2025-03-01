@@ -81,7 +81,7 @@ fn handle_shortcut_commands<R: Runtime>(app: &AppHandle<R>, command: &CommandTyp
             prompt,
         } => {
             // Check if focus window exists and is focused
-            let should_proceed = app.get_window("focus")
+            let should_proceed = app.get_webview_window("focus")
                 .map(|w| w.is_focused().unwrap_or(false))
                 .unwrap_or(false);
 
