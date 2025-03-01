@@ -93,44 +93,44 @@ fn handle_shortcut_commands<R: Runtime>(app: &AppHandle<R>, command: &CommandTyp
             prompt,
         } => {
             // Check if the focus window is active before executing prompt shortcuts
-            let focus_window = app.get_window("focus");
+            let focus_window = app.get_webview_window("focus");
             let is_focused = focus_window
                 .as_ref()
                 .and_then(|w| w.is_focused().ok())
                 .unwrap_or(false);
-                
+
             if !is_focused {
                 println!("Prompt shortcut ignored: focus window not active");
                 return;
             }
-            
+
             let state = app.state::<AppState>();
             let selected_text = state.selected_text.blocking_read().clone();
-            
+
             // Use stored selected text if available
             let Some(selected_text) = selected_text else {
                 println!("No selected text available");
                 return;
             };
-            
+
             if selected_text.trim().is_empty() {
                 return;
             }
-            
+
             // Replace {{selectedText}} placeholder in the prompt template
             let final_prompt = prompt.replace("{{selectedText}}", &selected_text);
-            
+
             let provider = provider_name.clone();
-            
+
             // Clone app handle for async block
             let app_handle = app.clone();
-            
+
             // Submit the prompt in a background task
             tauri::async_runtime::spawn(async move {
                 // Submit the prompt to the LLM provider
                 let state = app_handle.state::<AppState>();
                 let result = state.submit_prompt(&provider, final_prompt).await;
-                
+
                 match result {
                     Ok(response) => {
                         println!("{}", response);
