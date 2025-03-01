@@ -55,6 +55,18 @@ pub fn enable_shortcuts(app: &App) {
 fn handle_shortcut_commands<R: Runtime>(app: &AppHandle<R>, command: &CommandType) {
     match command {
         CommandType::ToggleWindow => {
+            // Capture selected text when toggling window
+            match commands::get_selected_text(app) {
+                Ok(text) => {
+                    let state = app.state::<AppState>();
+                    // Use blocking_write since we're in a non-async context
+                    let mut selected_text = state.selected_text.blocking_write();
+                    *selected_text = Some(text);
+                }
+                Err(e) => {
+                    println!("Error capturing selected text: {}", e);
+                }
+            }
             commands::toggle_window(app).unwrap();
         }
         CommandType::GetCursorPosition => {
@@ -80,50 +92,42 @@ fn handle_shortcut_commands<R: Runtime>(app: &AppHandle<R>, command: &CommandTyp
             provider_name,
             prompt,
         } => {
-            // Check if focus window exists and is focused
-            let should_proceed = app.get_webview_window("focus")
-                .map(|w| w.is_focused().unwrap_or(false))
-                .unwrap_or(false);
-
-            if !should_proceed {
+            let state = app.state::<AppState>();
+            let selected_text = state.selected_text.blocking_read().clone();
+            
+            // Use stored selected text if available
+            let Some(selected_text) = selected_text else {
+                println!("No selected text available");
+                return;
+            };
+            
+            if selected_text.trim().is_empty() {
                 return;
             }
-
-            // Get the selected text
-            match commands::get_selected_text(app) {
-                Ok(selected_text) => {
-                    if selected_text.trim().is_empty() {
-                        return;
+            
+            // Replace {{selectedText}} placeholder in the prompt template
+            let final_prompt = prompt.replace("{{selectedText}}", &selected_text);
+            
+            let provider = provider_name.clone();
+            
+            // Clone app handle for async block
+            let app_handle = app.clone();
+            
+            // Submit the prompt in a background task
+            tauri::async_runtime::spawn(async move {
+                // Submit the prompt to the LLM provider
+                let state = app_handle.state::<AppState>();
+                let result = state.submit_prompt(&provider, final_prompt).await;
+                
+                match result {
+                    Ok(response) => {
+                        println!("{}", response);
                     }
-                    
-                    // Replace {{selectedText}} placeholder in the prompt template
-                    let final_prompt = prompt.replace("{{selectedText}}", &selected_text);
-                    
-                    let provider = provider_name.clone();
-                    
-                    // Clone app handle for async block
-                    let app_handle = app.clone();
-                    
-                    // Submit the prompt in a background task
-                    tauri::async_runtime::spawn(async move {
-                        // Submit the prompt to the LLM provider
-                        let state = app_handle.state::<AppState>();
-                        let result = state.submit_prompt(&provider, final_prompt).await;
-                        
-                        match result {
-                            Ok(response) => {
-                                println!("{}", response);
-                            }
-                            Err(err) => {
-                                println!("Error: {:?}", err);
-                            }
-                        }
-                    });
+                    Err(err) => {
+                        println!("Error: {:?}", err);
+                    }
                 }
-                Err(e) => {
-                    println!("Error: {}", e);
-                }
-            }
+            });
         }
     }
 }

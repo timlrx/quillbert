@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::RwLock;
 use tauri::Manager;
+use tokio::sync::RwLock as AsyncRwLock;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderConfig {
@@ -197,12 +198,14 @@ impl SettingsManager {
 
 pub struct AppState {
     pub settings_manager: SettingsManager,
+    pub selected_text: AsyncRwLock<Option<String>>,
 }
 
 impl AppState {
     pub fn new(app_handle: &tauri::AppHandle) -> Result<Self, Box<dyn std::error::Error>> {
         Ok(Self {
             settings_manager: SettingsManager::new(app_handle)?,
+            selected_text: AsyncRwLock::new(None),
         })
     }
 
