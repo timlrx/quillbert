@@ -2,13 +2,13 @@ use enigo::{
     Direction::{Click, Press, Release},
     Enigo, Key, Keyboard, Settings,
 };
-use tauri::{Manager, PhysicalPosition, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
 /// Toggle query window
 pub fn toggle_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
     let window_opt = app.get_webview_window("focus");
-    
+
     match window_opt {
         Some(window) => {
             // Window exists, toggle visibility
@@ -22,7 +22,7 @@ pub fn toggle_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Res
                 window.set_focus()?;
                 println!("Window in focus");
             }
-        },
+        }
         None => {
             // Window doesn't exist, create it
             WebviewWindowBuilder::new(app, "focus", WebviewUrl::App("panel.html".into()))
@@ -76,6 +76,13 @@ pub fn get_selected_text<R: tauri::Runtime>(
 
     // Get the selected text
     let selected_text = app.clipboard().read_text()?;
+
+    // Emit event to focus window with the selected text
+    if let Some(focus_window) = app.get_webview_window("focus") {
+        focus_window
+            .emit("selected-text", selected_text.clone())
+            .map_err(|e| format!("Failed to emit selected-text to focus window: {}", e))?;
+    }
 
     // Restore original clipboard contents
     if let Some(original) = original_contents {

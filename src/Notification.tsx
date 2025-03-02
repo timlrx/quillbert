@@ -47,6 +47,58 @@ interface ShortcutItemProps {
   isProcessing: boolean;
 }
 
+const SelectedTextPanel: React.FC<{
+  selectedText: string | null;
+}> = ({ selectedText }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  if (!selectedText) {
+    return (
+      <div className="border-t border-gray-200 p-4">
+        <div className="text-gray-400 text-xs italic text-center py-3">
+          No text selected. Select text before activating a prompt.
+        </div>
+      </div>
+    );
+  }
+
+  // Calculate excerpt for longer texts
+  const isLongText = selectedText.length > 200;
+  const excerpt = isLongText
+    ? `${selectedText.slice(0, 150).trim()}...`
+    : selectedText;
+  const wordCount = selectedText
+    .split(/\s+/)
+    .filter((word) => word.length > 0).length;
+  const charCount = selectedText.length;
+
+  return (
+    <div className="border-t border-gray-200 p-4">
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="text-xs font-medium text-gray-600">Selected Text</h2>
+        <div className="text-xs text-gray-500">
+          {wordCount} words | {charCount} chars
+        </div>
+      </div>
+
+      <div
+        className={`p-2 text-xs bg-gray-50 border border-gray-200 rounded-md ${isExpanded ? "max-h-60" : "max-h-20"} overflow-y-auto whitespace-pre-wrap break-words transition-all duration-300 ease-in-out`}
+      >
+        {isExpanded ? selectedText : excerpt}
+      </div>
+
+      {isLongText && (
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="mt-2 text-xs text-blue-600 hover:text-blue-800 transition-colors focus:outline-none"
+        >
+          {isExpanded ? "Show less" : "Show more"}
+        </button>
+      )}
+    </div>
+  );
+};
+
 const ShortcutItem: React.FC<ShortcutItemProps> = ({
   prompt,
   onClick,
@@ -77,15 +129,13 @@ const ShortcutItem: React.FC<ShortcutItemProps> = ({
   );
 };
 
-// No longer needed as a separate component
-// Status will be directly integrated in the header
-
 const Notification: React.FC = () => {
   const [customPrompts, setCustomPrompts] = useState<CustomPrompt[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [shortcuts, setShortcuts] = useState<ShortcutConfig[]>([]);
   const [processingPrompt, setProcessingPrompt] = useState<string | null>(null);
+  const [selectedText, setSelectedText] = useState<string | null>(null);
   const [status, setStatus] = useState<NotificationStatus>({
     active: false,
     promptName: null,
@@ -304,26 +354,35 @@ const Notification: React.FC = () => {
       window.removeEventListener("keyup", handleKeyUp);
       pressedKeys.current.clear();
     };
-  }, [shortcuts, handleKeyDown, handleKeyUp]); // Re-attach listeners when shortcuts or handlers change
+  }, [shortcuts, handleKeyDown, handleKeyUp]);
 
   // Load data and setup event listeners when component mounts
   useEffect(() => {
     loadCustomPrompts();
 
-    // Listen for shortcuts-updated events
-    const unlistenPromise = listen("shortcuts-updated", () => {
+    const unlistenPromises: Promise<() => void>[] = [];
+
+    // Listen for shortcut updates
+    const shortcutsPromise = listen("shortcuts-updated", () => {
       console.log("Shortcuts updated event received");
-
-      // First clear the current keys to avoid any stuck keys
       pressedKeys.current.clear();
-
-      // Reload both custom prompts and shortcuts
       loadCustomPrompts();
     });
+    unlistenPromises.push(shortcutsPromise);
+
+    // Listen for selected-text event from the Rust backend
+    const selectedTextPromise = listen("selected-text", (event) => {
+      const text = event.payload as string;
+      setSelectedText(text.trim() === "" ? null : text);
+    });
+    unlistenPromises.push(selectedTextPromise);
 
     // Cleanup listener and timeouts on component unmount
     return () => {
-      unlistenPromise.then((unlistenFn) => unlistenFn());
+      unlistenPromises.forEach((promise) => {
+        promise.then((unlistenFn) => unlistenFn());
+      });
+
       if (statusTimeoutRef.current !== null) {
         window.clearTimeout(statusTimeoutRef.current);
       }
@@ -345,8 +404,6 @@ const Notification: React.FC = () => {
           />
         </button>
         <div className="flex-grow"></div>
-
-        {/* Inline status indicator with fixed height/width to prevent layout shift */}
         <div className="h-6 min-w-[200px] flex items-center justify-end">
           {status.active && (
             <div
@@ -403,6 +460,7 @@ const Notification: React.FC = () => {
           ))}
         </div>
       )}
+      <SelectedTextPanel selectedText={selectedText} />
     </div>
   );
 };
