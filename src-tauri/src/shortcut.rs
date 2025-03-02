@@ -94,51 +94,10 @@ fn handle_shortcut_commands<R: Runtime>(app: &AppHandle<R>, command: &CommandTyp
             println!("PrintHello command triggered");
         }
         CommandType::Prompt {
-            provider_name,
-            prompt,
+            provider_name: _,
+            prompt: _,
         } => {
-            // Check if the focus window is active before executing prompt shortcuts
-            if !is_focus_window_active(app) {
-                println!("Prompt shortcut ignored: focus window not active");
-                return;
-            }
-
-            let state = app.state::<AppState>();
-            let selected_text = state.selected_text.blocking_read().clone();
-
-            // Use stored selected text if available
-            let Some(selected_text) = selected_text else {
-                println!("No selected text available");
-                return;
-            };
-
-            if selected_text.trim().is_empty() {
-                return;
-            }
-
-            // Replace {{selectedText}} placeholder in the prompt template
-            let final_prompt = prompt.replace("{{selectedText}}", &selected_text);
-
-            let provider = provider_name.clone();
-
-            // Clone app handle for async block
-            let app_handle = app.clone();
-
-            // Submit the prompt in a background task
-            tauri::async_runtime::spawn(async move {
-                // Submit the prompt to the LLM provider
-                let state = app_handle.state::<AppState>();
-                let result = state.submit_prompt(&provider, final_prompt).await;
-
-                match result {
-                    Ok(response) => {
-                        println!("{}", response);
-                    }
-                    Err(err) => {
-                        println!("Error: {:?}", err);
-                    }
-                }
-            });
+            // Pass since prompt command is no longer handled by global shortcut plugin
         }
     }
 }
@@ -152,14 +111,6 @@ pub async fn get_shortcuts(
         .settings_manager
         .get_shortcuts()
         .map_err(|e| e.to_string())
-}
-
-/// Check if focus window is active and visible
-fn is_focus_window_active<R: Runtime>(app: &AppHandle<R>) -> bool {
-    app.get_webview_window("focus")
-        .as_ref()
-        .and_then(|w| w.is_focused().ok())
-        .unwrap_or(false)
 }
 
 /// Unregister a specific shortcut
