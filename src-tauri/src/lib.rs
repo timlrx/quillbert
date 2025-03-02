@@ -91,10 +91,10 @@ pub fn run() {
             query::get_llm_configs,
             query::register_custom_prompt,
             query::get_custom_prompts,
+            query::execute_custom_prompt,
             shortcut::get_shortcuts,
             shortcut::unregister_shortcut,
             shortcut::update_shortcut,
-            shortcut::execute_custom_prompt,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
