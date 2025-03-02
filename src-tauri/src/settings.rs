@@ -67,7 +67,16 @@ impl Default for UIConfig {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            llm_providers: Vec::new(),
+            llm_providers: vec![
+                ProviderConfig {
+                    name: "default".to_string(),
+                    provider: "google".to_string(),
+                    api_key: "".to_string(),
+                    model: "gemini-2.0-flash".to_string(),
+                    temperature: 0.7,
+                    max_tokens: 1024,
+                },
+            ],
             shortcuts: vec![
                 ShortcutConfig {
                     name: "Toggle Window".to_string(),
@@ -88,6 +97,30 @@ impl Default for Settings {
                     name: "Print Hello".to_string(),
                     shortcut: "shift+h".to_string(),
                     command: CommandType::PrintHello,
+                },
+                ShortcutConfig {
+                    name: "Fix Grammar".to_string(),
+                    shortcut: "f".to_string(),
+                    command: CommandType::Prompt {
+                        provider_name: "default".to_string(),
+                        prompt: "Fix the grammar, spelling, and punctuation errors in the following text, but maintain the original meaning and tone: {{selectedText}}".to_string(),
+                    },
+                },
+                ShortcutConfig {
+                    name: "Summarise".to_string(),
+                    shortcut: "s".to_string(),
+                    command: CommandType::Prompt {
+                        provider_name: "default".to_string(),
+                        prompt: "Provide a concise summary of the following text, capturing the main points and key details: {{selectedText}}".to_string(),
+                    },
+                },
+                ShortcutConfig {
+                    name: "Write More".to_string(),
+                    shortcut: "w".to_string(),
+                    command: CommandType::Prompt {
+                        provider_name: "default".to_string(),
+                        prompt: "Expand on the following text, adding more details, examples, and elaboration while maintaining the original tone and style: {{selectedText}}".to_string(),
+                    },
                 },
             ],
             ui: UIConfig::default(),
@@ -126,7 +159,7 @@ impl SettingsManager {
     pub fn save(&self, new_settings: Settings) -> Result<(), Box<dyn std::error::Error>> {
         // Write to file first
         self.save_settings(&new_settings)?;
-        
+
         // Update memory only after successful file write
         let mut settings = self.settings.write().map_err(|e| e.to_string())?;
         *settings = new_settings;
