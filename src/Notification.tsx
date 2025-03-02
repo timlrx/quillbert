@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Loader2 } from "lucide-react";
 import {
   formatKey,
   tauriToKeysArray,
@@ -33,22 +33,42 @@ interface ShortcutConfig {
   };
 }
 
+interface NotificationStatus {
+  active: boolean;
+  promptName: string | null;
+  message: string;
+  type: "loading" | "success" | "error";
+  timestamp: number;
+}
+
 interface ShortcutItemProps {
   prompt: CustomPrompt;
   onClick: (name: string) => void;
+  isProcessing: boolean;
 }
 
-const ShortcutItem: React.FC<ShortcutItemProps> = ({ prompt, onClick }) => {
+const ShortcutItem: React.FC<ShortcutItemProps> = ({
+  prompt,
+  onClick,
+  isProcessing,
+}) => {
   // Parse the Tauri shortcut format to get an array of keys
   const shortcutKeys = tauriToKeysArray(prompt.shortcut);
 
   return (
     <div
-      className="inline-flex items-center px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 hover:bg-blue-100 cursor-pointer transition-colors text-sm"
-      onClick={() => onClick(prompt.name)}
+      className={`inline-flex items-center px-3 py-1.5 rounded-full ${
+        isProcessing
+          ? "bg-blue-100 text-blue-800"
+          : "bg-blue-50 text-blue-700 hover:bg-blue-100 cursor-pointer"
+      } transition-colors text-sm`}
+      onClick={() => !isProcessing && onClick(prompt.name)}
     >
       <span className="font-medium">{prompt.name}</span>
-      {shortcutKeys.length > 0 && (
+      {isProcessing && (
+        <Loader2 className="ml-1.5 h-3 w-3 animate-spin text-blue-500" />
+      )}
+      {!isProcessing && shortcutKeys.length > 0 && (
         <span className="ml-1.5 text-xs text-blue-500 font-mono">
           {shortcutKeys.map(formatKey).join("+")}
         </span>
@@ -57,12 +77,65 @@ const ShortcutItem: React.FC<ShortcutItemProps> = ({ prompt, onClick }) => {
   );
 };
 
+// No longer needed as a separate component
+// Status will be directly integrated in the header
+
 const Notification: React.FC = () => {
   const [customPrompts, setCustomPrompts] = useState<CustomPrompt[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [shortcuts, setShortcuts] = useState<ShortcutConfig[]>([]);
+  const [processingPrompt, setProcessingPrompt] = useState<string | null>(null);
+  const [status, setStatus] = useState<NotificationStatus>({
+    active: false,
+    promptName: null,
+    message: "",
+    type: "loading",
+    timestamp: 0,
+  });
+
   const pressedKeys = useRef(new Set<string>());
+  const statusTimeoutRef = useRef<number | null>(null);
+
+  // Show status notification for a specific duration
+  const showStatus = useCallback(
+    (
+      type: "loading" | "success" | "error",
+      promptName: string | null,
+      message: string,
+    ) => {
+      // Clear any existing timeout
+      if (statusTimeoutRef.current !== null) {
+        window.clearTimeout(statusTimeoutRef.current);
+      }
+
+      setStatus({
+        active: true,
+        promptName,
+        message,
+        type,
+        timestamp: Date.now(),
+      });
+
+      // Auto hide status after a delay unless it's a loading status
+      if (type !== "loading") {
+        statusTimeoutRef.current = window.setTimeout(() => {
+          setStatus((prev) => ({ ...prev, active: false }));
+          statusTimeoutRef.current = null;
+        }, 3000);
+      }
+    },
+    [],
+  );
+
+  // Hide status notification
+  const hideStatus = useCallback(() => {
+    if (statusTimeoutRef.current !== null) {
+      window.clearTimeout(statusTimeoutRef.current);
+      statusTimeoutRef.current = null;
+    }
+    setStatus((prev) => ({ ...prev, active: false }));
+  }, []);
 
   // Load custom prompts and shortcuts - using useCallback to maintain reference stability
   const loadCustomPrompts = useCallback(async (): Promise<void> => {
@@ -93,17 +166,35 @@ const Notification: React.FC = () => {
     async (promptName: string): Promise<void> => {
       try {
         console.log(`Executing custom prompt: ${promptName}`);
+
+        // Set processing state and show loading status
+        setProcessingPrompt(promptName);
+        showStatus("loading", promptName, `Processing "${promptName}"...`);
+
         await invoke("execute_custom_prompt", { promptName });
+
+        // Show success status
+        showStatus(
+          "success",
+          promptName,
+          `Successfully processed "${promptName}"`,
+        );
       } catch (err) {
         console.error(`Error executing custom prompt ${promptName}:`, err);
-        setError(
+        const errorMessage =
           typeof err === "string"
             ? err
-            : `Failed to execute prompt: ${promptName}`,
-        );
+            : `Failed to execute prompt: ${promptName}`;
+        setError(errorMessage);
+
+        // Show error status
+        showStatus("error", promptName, errorMessage);
+      } finally {
+        // Clear processing state
+        setProcessingPrompt(null);
       }
     },
-    [],
+    [showStatus],
   );
 
   // Handle keydown event
@@ -116,6 +207,9 @@ const Notification: React.FC = () => {
         e.target instanceof HTMLTextAreaElement
       )
         return;
+
+      // Skip if a prompt is already processing
+      if (processingPrompt !== null) return;
 
       const key = normalizeKey(e.code);
       pressedKeys.current.add(key);
@@ -176,7 +270,7 @@ const Notification: React.FC = () => {
         }
       }
     },
-    [shortcuts, executeCustomPrompt],
+    [shortcuts, executeCustomPrompt, processingPrompt],
   );
 
   // Handle keyup event
@@ -227,26 +321,50 @@ const Notification: React.FC = () => {
       loadCustomPrompts();
     });
 
-    // Cleanup listener on component unmount
+    // Cleanup listener and timeouts on component unmount
     return () => {
       unlistenPromise.then((unlistenFn) => unlistenFn());
+      if (statusTimeoutRef.current !== null) {
+        window.clearTimeout(statusTimeoutRef.current);
+      }
     };
-  }, [loadCustomPrompts]);
+  }, [loadCustomPrompts, hideStatus]);
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+      <div className="flex items-center px-4 py-3 border-b border-gray-200">
         <h1 className="text-sm font-medium text-gray-700">Prompts</h1>
         <button
           onClick={() => loadCustomPrompts()}
           disabled={loading}
-          className="text-gray-400 hover:text-gray-600 transition-colors"
+          className="ml-2 text-gray-400 hover:text-gray-600 transition-colors"
           aria-label="Refresh shortcuts"
         >
           <RefreshCw
             className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
           />
         </button>
+        <div className="flex-grow"></div>
+
+        {/* Inline status indicator with fixed height/width to prevent layout shift */}
+        <div className="h-6 min-w-[200px] flex items-center justify-end">
+          {status.active && (
+            <div
+              className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition-opacity duration-200 ${
+                status.type === "loading"
+                  ? "text-blue-600"
+                  : status.type === "success"
+                    ? "text-green-600"
+                    : "text-red-600"
+              }`}
+            >
+              {status.type === "loading" && (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              )}
+              <span className="truncate max-w-[180px]">{status.message}</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {error && (
@@ -280,6 +398,7 @@ const Notification: React.FC = () => {
               key={prompt.name}
               prompt={prompt}
               onClick={executeCustomPrompt}
+              isProcessing={processingPrompt === prompt.name}
             />
           ))}
         </div>
