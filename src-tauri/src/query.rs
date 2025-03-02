@@ -1,6 +1,6 @@
 use crate::settings::{AppState, CommandType, ProviderConfig, ShortcutConfig};
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, State};
 
 #[derive(Debug, Deserialize)]
 pub struct PromptRequest {
@@ -56,7 +56,7 @@ pub async fn register_custom_prompt(
     config: CustomPromptConfig,
 ) -> Result<String, String> {
     println!("Registering custom prompt: {:?}", config);
-    
+
     // Create a new ShortcutConfig with CommandType::Prompt
     let shortcut_config = ShortcutConfig {
         name: config.name.clone(),
@@ -66,46 +66,57 @@ pub async fn register_custom_prompt(
             prompt: config.prompt_template,
         },
     };
-    
+
     // Update shortcuts to include this new custom prompt
     let mut shortcuts = state
         .settings_manager
         .get_shortcuts()
         .map_err(|e| e.to_string())?;
-    
+
     // Check if this prompt name already exists
     if let Some(position) = shortcuts.iter().position(|s| s.name == config.name) {
         shortcuts[position] = shortcut_config.clone();
     } else {
         shortcuts.push(shortcut_config.clone());
     }
-    
+
     // Save updated shortcuts
     state
         .settings_manager
         .update_shortcuts(shortcuts)
         .map_err(|e| e.to_string())?;
-    
-    // Register the shortcut if one is provided
-    if !shortcut_config.shortcut.is_empty() {
-        crate::shortcut::update_shortcut(app, shortcut_config).await?;
-    }
-    
-    Ok(format!("Custom prompt '{}' registered successfully", config.name))
+
+    // Custom prompts are now handled by the frontend
+    // Don't register with Tauri global shortcut system
+
+    // Emit an event to notify the frontend that shortcuts have been updated
+    app.emit("shortcuts-updated", ())
+        .map_err(|e| format!("Failed to emit shortcuts-updated event: {}", e))?;
+    println!("Shortcuts updated successfully");
+    Ok(format!(
+        "Custom prompt '{}' registered successfully",
+        config.name
+    ))
 }
 
 #[tauri::command]
-pub async fn get_custom_prompts(state: State<'_, AppState>) -> Result<Vec<CustomPromptConfig>, String> {
+pub async fn get_custom_prompts(
+    state: State<'_, AppState>,
+) -> Result<Vec<CustomPromptConfig>, String> {
     let shortcuts = state
         .settings_manager
         .get_shortcuts()
         .map_err(|e| e.to_string())?;
-    
+
     // Filter only shortcuts that are of type CommandType::Prompt
     let custom_prompts: Vec<CustomPromptConfig> = shortcuts
         .iter()
         .filter_map(|s| {
-            if let CommandType::Prompt { provider_name, prompt } = &s.command {
+            if let CommandType::Prompt {
+                provider_name,
+                prompt,
+            } = &s.command
+            {
                 Some(CustomPromptConfig {
                     name: s.name.clone(),
                     provider_name: provider_name.clone(),
@@ -117,6 +128,6 @@ pub async fn get_custom_prompts(state: State<'_, AppState>) -> Result<Vec<Custom
             }
         })
         .collect();
-    
+
     Ok(custom_prompts)
 }

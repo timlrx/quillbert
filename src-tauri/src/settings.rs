@@ -125,9 +125,8 @@ impl SettingsManager {
 
     pub fn save(&self, new_settings: Settings) -> Result<(), Box<dyn std::error::Error>> {
         // Write to file first
-        let contents = serde_json::to_string_pretty(&new_settings)?;
-        fs::write(&self.config_path, contents)?;
-
+        self.save_settings(&new_settings)?;
+        
         // Update memory only after successful file write
         let mut settings = self.settings.write().map_err(|e| e.to_string())?;
         *settings = new_settings;
@@ -148,14 +147,20 @@ impl SettingsManager {
             .clone())
     }
 
+    /// Helper method to save settings to file and update memory
+    fn save_settings(&self, settings: &Settings) -> Result<(), Box<dyn std::error::Error>> {
+        let contents = serde_json::to_string_pretty(settings)?;
+        fs::write(&self.config_path, contents)?;
+        Ok(())
+    }
+
     pub fn update_shortcuts(
         &self,
         shortcuts: Vec<ShortcutConfig>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let mut settings = self.settings.write().map_err(|e| e.to_string())?;
         settings.shortcuts = shortcuts;
-        let contents = serde_json::to_string_pretty(&*settings)?;
-        fs::write(&self.config_path, contents)?;
+        self.save_settings(&settings)?;
         Ok(())
     }
 
@@ -173,8 +178,7 @@ impl SettingsManager {
         let mut settings = self.settings.write().map_err(|e| e.to_string())?;
         settings.llm_providers.retain(|p| p.name != config.name);
         settings.llm_providers.push(config);
-        let contents = serde_json::to_string_pretty(&*settings)?;
-        fs::write(&self.config_path, contents)?;
+        self.save_settings(&settings)?;
         Ok(())
     }
 
@@ -190,8 +194,7 @@ impl SettingsManager {
     pub fn update_ui_config(&self, ui_config: UIConfig) -> Result<(), Box<dyn std::error::Error>> {
         let mut settings = self.settings.write().map_err(|e| e.to_string())?;
         settings.ui = ui_config;
-        let contents = serde_json::to_string_pretty(&*settings)?;
-        fs::write(&self.config_path, contents)?;
+        self.save_settings(&settings)?;
         Ok(())
     }
 }

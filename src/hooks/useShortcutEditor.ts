@@ -45,6 +45,7 @@ const RESERVED_SHORTCUTS = [
 export function useShortcutEditor(
   shortcut: Shortcut,
   onChange: (shortcut: Shortcut) => void,
+  isCustomPrompt: boolean = false, // New parameter to indicate if this is a custom prompt
 ) {
   console.log("shortcut", shortcut);
 
@@ -58,30 +59,43 @@ export function useShortcutEditor(
   }, []);
 
   const saveShortcut = async () => {
-    if (!isEditing || currentKeys.length < 2) return;
+    if (!isEditing) return;
+    
+    // For custom prompts, allow single key shortcuts (no modifiers required)
+    if (isCustomPrompt) {
+      if (currentKeys.length < 1) return;
+      // No other validation needed for custom prompts - single keys are fine
+    } else {
+      // For system-wide shortcuts, require at least 2 keys with a modifier
+      if (currentKeys.length < 2) return;
+      
+      const hasModifier = currentKeys.some(isModifierKey);
+      const hasNonModifier = currentKeys.some((key) => !isModifierKey(key));
+      
+      if (!hasModifier || !hasNonModifier) return;
+    }
 
-    const hasModifier = currentKeys.some(isModifierKey);
-    const hasNonModifier = currentKeys.some((key) => !isModifierKey(key));
+    // Always check for reserved shortcuts (unless it's a custom prompt with a single key)
+    if (!isCustomPrompt || currentKeys.length > 1) {
+      const isReserved = RESERVED_SHORTCUTS.some(
+        (reserved) =>
+          reserved.length === currentKeys.length &&
+          reserved.every(
+            (key, index) =>
+              key.toLowerCase() === currentKeys[index].toLowerCase(),
+          ),
+      );
 
-    if (!hasModifier || !hasNonModifier) return;
-
-    const isReserved = RESERVED_SHORTCUTS.some(
-      (reserved) =>
-        reserved.length === currentKeys.length &&
-        reserved.every(
-          (key, index) =>
-            key.toLowerCase() === currentKeys[index].toLowerCase(),
-        ),
-    );
-
-    if (isReserved) {
-      console.error("This is a system reserved shortcut");
-      return;
+      if (isReserved) {
+        console.error("This is a system reserved shortcut");
+        return;
+      }
     }
 
     // Sort keys to ensure consistent order (modifiers first)
     const sortedKeys = sortKeys(currentKeys);
-
+    
+    console.log("Saving shortcut:", sortedKeys, "isCustomPrompt:", isCustomPrompt);
     onChange(sortedKeys);
     setIsEditing(false);
     setCurrentKeys([]);

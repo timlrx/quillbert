@@ -4,6 +4,7 @@ import { ShortcutItem } from "@/components/ShortcutItem";
 import { useShortcutEditor } from "@/hooks/useShortcutEditor";
 import { tauriToKeysArray, keysArrayToTauri } from "@/utils/keyboardUtils";
 import { Save, Trash2, Edit2, Plus } from "lucide-react";
+import { listen } from "@tauri-apps/api/event";
 
 interface ShortcutConfig {
   name: string;
@@ -76,11 +77,15 @@ const CustomShortcutEditor: React.FC<{
   const shortcutKeys = tauriToKeysArray(shortcut);
 
   const { isEditing, currentKeys, startEditing, saveShortcut, cancelEditing } =
-    useShortcutEditor(shortcutKeys, (newKeys) => {
-      // Convert back to Tauri format when saving
-      const shortcutStr = keysArrayToTauri(newKeys);
-      onShortcutChange(shortcutStr);
-    });
+    useShortcutEditor(
+      shortcutKeys,
+      (newKeys) => {
+        // Convert back to Tauri format when saving
+        const shortcutStr = keysArrayToTauri(newKeys);
+        onShortcutChange(shortcutStr);
+      },
+      true, // isCustomPrompt=true to allow single key shortcuts
+    );
 
   return (
     <ShortcutItem
@@ -126,7 +131,9 @@ const CustomPromptEditor: React.FC = () => {
   };
 
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >,
   ) => {
     const { name, value } = e.target;
     setCurrentPrompt((prev) => ({
@@ -148,13 +155,13 @@ const CustomPromptEditor: React.FC = () => {
         ...customPrompts[index],
         shortcut: "", // Empty shortcut to unregister it
       };
-      
+
       await invoke("register_custom_prompt", { config: promptToDelete });
-      
+
       // Create a new array without the deleted prompt and update
       const updatedPrompts = customPrompts.filter((_, i) => i !== index);
       setCustomPrompts(updatedPrompts);
-      
+
       // Reload to get the updated state from backend
       await loadCustomPromptsAndLLMConfigs();
     } catch (err) {
@@ -165,7 +172,8 @@ const CustomPromptEditor: React.FC = () => {
   const validatePrompt = () => {
     if (!currentPrompt.name.trim()) return "Name is required";
     if (!currentPrompt.provider_name.trim()) return "Provider is required";
-    if (!currentPrompt.prompt_template.trim()) return "Prompt template is required";
+    if (!currentPrompt.prompt_template.trim())
+      return "Prompt template is required";
     return null;
   };
 
@@ -178,7 +186,7 @@ const CustomPromptEditor: React.FC = () => {
 
     try {
       await invoke("register_custom_prompt", { config: currentPrompt });
-      
+
       // Reset form
       setCurrentPrompt({
         name: "",
@@ -189,7 +197,7 @@ const CustomPromptEditor: React.FC = () => {
       setIsEditing(false);
       setEditingIndex(null);
       setPromptError("");
-      
+
       // Reload data
       await loadCustomPromptsAndLLMConfigs();
     } catch (err) {
@@ -211,13 +219,13 @@ const CustomPromptEditor: React.FC = () => {
   return (
     <div className="bg-white rounded-lg shadow-lg p-6 mt-8">
       <h2 className="text-2xl font-bold text-gray-900 mb-6">Custom Prompts</h2>
-      
+
       {promptError && (
         <div className="bg-red-50 border border-red-200 text-red-600 p-4 rounded-lg mb-6">
           {promptError}
         </div>
       )}
-      
+
       {/* Prompt form */}
       <div className="space-y-4 mb-8 border p-4 rounded-lg">
         <div className="grid grid-cols-2 gap-4">
@@ -253,24 +261,24 @@ const CustomPromptEditor: React.FC = () => {
             </select>
           </div>
         </div>
-        
+
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Shortcut
           </label>
           <div className="w-full border border-gray-300 rounded-lg p-3">
-            <CustomShortcutEditor 
+            <CustomShortcutEditor
               shortcut={currentPrompt.shortcut}
               onShortcutChange={(newShortcut) => {
-                setCurrentPrompt(prev => ({
+                setCurrentPrompt((prev) => ({
                   ...prev,
-                  shortcut: newShortcut
+                  shortcut: newShortcut,
                 }));
               }}
             />
           </div>
         </div>
-        
+
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Prompt Template
@@ -287,7 +295,7 @@ const CustomPromptEditor: React.FC = () => {
             Use {"{{selectedText}}"} as a placeholder for the selected text
           </p>
         </div>
-        
+
         <div className="flex items-center justify-end space-x-2">
           {isEditing && (
             <button
@@ -301,12 +309,16 @@ const CustomPromptEditor: React.FC = () => {
             onClick={handleSavePrompt}
             className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2"
           >
-            {isEditing ? <Save className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+            {isEditing ? (
+              <Save className="h-4 w-4" />
+            ) : (
+              <Plus className="h-4 w-4" />
+            )}
             {isEditing ? "Update" : "Add"} Prompt
           </button>
         </div>
       </div>
-      
+
       {/* List of saved prompts */}
       {customPrompts.length > 0 && (
         <div>
@@ -317,9 +329,13 @@ const CustomPromptEditor: React.FC = () => {
                 <div className="flex justify-between">
                   <div>
                     <h4 className="font-medium">{prompt.name}</h4>
-                    <p className="text-sm text-gray-600">Provider: {prompt.provider_name}</p>
+                    <p className="text-sm text-gray-600">
+                      Provider: {prompt.provider_name}
+                    </p>
                     {prompt.shortcut && (
-                      <p className="text-sm text-gray-600">Shortcut: {prompt.shortcut}</p>
+                      <p className="text-sm text-gray-600">
+                        Shortcut: {prompt.shortcut}
+                      </p>
                     )}
                   </div>
                   <div className="flex gap-2">
@@ -340,7 +356,9 @@ const CustomPromptEditor: React.FC = () => {
                   </div>
                 </div>
                 <div className="mt-2 bg-white p-3 rounded border border-gray-200 text-sm text-gray-700">
-                  <p className="whitespace-pre-wrap">{prompt.prompt_template}</p>
+                  <p className="whitespace-pre-wrap">
+                    {prompt.prompt_template}
+                  </p>
                 </div>
               </div>
             ))}
@@ -355,22 +373,37 @@ const Settings: React.FC = () => {
   const [shortcuts, setShortcuts] = useState<ShortcutConfig[]>([]);
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"shortcuts" | "prompts">("shortcuts");
+  const [activeTab, setActiveTab] = useState<"shortcuts" | "prompts">(
+    "shortcuts",
+  );
 
-  useEffect(() => {
-    loadShortcuts();
-  }, []);
-
-  const loadShortcuts = async () => {
+  const loadShortcuts = React.useCallback(async () => {
     try {
+      console.log("Settings: Loading shortcuts...");
       const savedShortcuts = await invoke<ShortcutConfig[]>("get_shortcuts");
+      console.log("Settings: Received shortcuts:", savedShortcuts);
       setShortcuts(savedShortcuts);
     } catch (err) {
       setError(typeof err === "string" ? err : "Failed to load shortcuts");
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadShortcuts();
+
+    // Listen for shortcuts-updated events
+    const unlistenPromise = listen("shortcuts-updated", async () => {
+      console.log("Settings: Shortcuts updated event received");
+      await loadShortcuts();
+    });
+
+    // Cleanup listener on component unmount
+    return () => {
+      unlistenPromise.then((unlistenFn) => unlistenFn());
+    };
+  }, [loadShortcuts]);
 
   const handleSaveShortcut = async (index: number, shortcutStr: string) => {
     try {

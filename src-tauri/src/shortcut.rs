@@ -1,6 +1,6 @@
 use crate::commands;
 use crate::settings::{AppState, CommandType, ShortcutConfig};
-use tauri::{App, AppHandle, Manager, Runtime};
+use tauri::{App, AppHandle, Emitter, Manager, Runtime};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 /// Set shortcut during application startup
@@ -11,9 +11,14 @@ pub fn enable_shortcuts(app: &App) {
         .get_shortcuts()
         .expect("Should be able to get shortcuts from settings");
 
+    // Filter out custom prompts for global shortcut registration
     let enabled_shortcuts: Vec<(String, CommandType, Shortcut)> = shortcuts
         .iter()
         .filter(|s| s.shortcut != "")
+        .filter(|s| {
+            // Only include non-custom-prompt shortcuts for Tauri global shortcut registration
+            !matches!(s.command, CommandType::Prompt { .. })
+        })
         .map(|s| {
             (
                 s.shortcut.to_string(),
@@ -93,13 +98,7 @@ fn handle_shortcut_commands<R: Runtime>(app: &AppHandle<R>, command: &CommandTyp
             prompt,
         } => {
             // Check if the focus window is active before executing prompt shortcuts
-            let focus_window = app.get_webview_window("focus");
-            let is_focused = focus_window
-                .as_ref()
-                .and_then(|w| w.is_focused().ok())
-                .unwrap_or(false);
-
-            if !is_focused {
+            if !is_focus_window_active(app) {
                 println!("Prompt shortcut ignored: focus window not active");
                 return;
             }
@@ -155,6 +154,93 @@ pub async fn get_shortcuts(
         .map_err(|e| e.to_string())
 }
 
+/// Check if focus window is active and visible
+fn is_focus_window_active<R: Runtime>(app: &AppHandle<R>) -> bool {
+    app.get_webview_window("focus")
+        .as_ref()
+        .and_then(|w| w.is_focused().ok())
+        .unwrap_or(false)
+}
+
+/// Handle prompt command asynchronously
+async fn handle_prompt_command<R: Runtime>(
+    app: &AppHandle<R>,
+    provider_name: &str,
+    prompt: &str,
+) -> Result<(), String> {
+    // Check if the focus window is active before executing prompt shortcuts
+    if !is_focus_window_active(app) {
+        println!("Prompt shortcut ignored: focus window not active");
+        return Ok(());
+    }
+
+    let state = app.state::<AppState>();
+    
+    // Use read() instead of blocking_read() for async context
+    let selected_text = {
+        let guard = state.selected_text.read().await;
+        (*guard).clone()
+    };
+
+    // Use stored selected text if available
+    let Some(selected_text) = selected_text else {
+        println!("No selected text available");
+        return Ok(());
+    };
+
+    if selected_text.trim().is_empty() {
+        return Ok(());
+    }
+
+    // Replace {{selectedText}} placeholder in the prompt template
+    let final_prompt = prompt.replace("{{selectedText}}", &selected_text);
+
+    // Submit the prompt to the LLM provider
+    let result = state.submit_prompt(provider_name, final_prompt).await;
+
+    match result {
+        Ok(response) => {
+            println!("Response: {}", response);
+            Ok(())
+        }
+        Err(err) => {
+            println!("Error: {:?}", err);
+            Err(format!("Error processing prompt: {}", err))
+        }
+    }
+}
+
+/// Execute a custom prompt from the frontend
+#[tauri::command]
+pub async fn execute_custom_prompt<R: Runtime>(
+    app: AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    prompt_name: String,
+) -> Result<(), String> {
+    let shortcuts = state
+        .settings_manager
+        .get_shortcuts()
+        .map_err(|e| e.to_string())?;
+
+    // Find the custom prompt by name
+    let prompt_shortcut = shortcuts
+        .iter()
+        .find(|s| s.name == prompt_name)
+        .ok_or_else(|| format!("Custom prompt '{}' not found", prompt_name))?;
+
+    // Verify it's actually a Prompt command
+    if let CommandType::Prompt {
+        provider_name,
+        prompt,
+    } = &prompt_shortcut.command
+    {
+        // Execute the prompt command asynchronously
+        handle_prompt_command(&app, provider_name, prompt).await
+    } else {
+        Err(format!("'{}' is not a custom prompt", prompt_name))
+    }
+}
+
 /// Unregister a specific shortcut
 #[tauri::command]
 pub async fn unregister_shortcut<R: Runtime>(
@@ -195,8 +281,8 @@ pub async fn update_shortcut<R: Runtime>(
         .iter_mut()
         .find(|s| s.name == shortcut_config.name)
     {
-        // Unregister old shortcut if it was enabled
-        if existing.shortcut != "" {
+        // Unregister old shortcut if it was enabled and not a custom prompt
+        if existing.shortcut != "" && !matches!(existing.command, CommandType::Prompt { .. }) {
             let old_shortcut = existing
                 .shortcut
                 .parse::<Shortcut>()
@@ -217,16 +303,26 @@ pub async fn update_shortcut<R: Runtime>(
         .update_shortcuts(shortcuts)
         .map_err(|e| e.to_string())?;
 
-    app.global_shortcut()
-        .on_shortcut(shortcut, move |app, scut, event| {
-            if scut == &shortcut {
-                if event.state() == ShortcutState::Pressed {
-                    println!("Shortcut pressed: {:?}", scut);
-                    handle_shortcut_commands(app, &shortcut_config.command);
+    // Only register the shortcut with the global shortcut system if it's not a custom prompt
+    if !matches!(shortcut_config.command, CommandType::Prompt { .. }) {
+        app.global_shortcut()
+            .on_shortcut(shortcut, move |app, scut, event| {
+                if scut == &shortcut {
+                    if event.state() == ShortcutState::Pressed {
+                        println!("Shortcut pressed: {:?}", scut);
+                        handle_shortcut_commands(app, &shortcut_config.command);
+                    }
                 }
-            }
-        })
-        .map_err(|e| e.to_string())?;
+            })
+            .map_err(|e| e.to_string())?;
+    }
+
+    // Emit an event to notify the frontend that shortcuts have been updated
+    if let Some(focus_window) = app.get_webview_window("focus") {
+        focus_window
+            .emit("shortcuts-updated", ())
+            .map_err(|e| format!("Failed to emit shortcuts-updated to focus window: {}", e))?;
+    }
 
     Ok(())
 }

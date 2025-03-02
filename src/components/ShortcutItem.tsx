@@ -48,7 +48,6 @@ export function ShortcutItem({
           <div className="flex gap-2 ml-3">
             <button
               onClick={onSave}
-              disabled={currentKeys.length < 2}
               className="px-3 py-1 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 transition-colors
                 disabled:opacity-50 disabled:cursor-not-allowed"
             >

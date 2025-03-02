@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { Send, RefreshCw } from "lucide-react";
+import { isModifierKey, normalizeKey, sortKeys, keysArrayToTauri } from "@/utils/keyboardUtils";
 import "./App.css";
 
 interface LLMConfig {
@@ -22,6 +24,19 @@ type LLMProvider =
   | "groq"
   | "google";
 
+interface CustomPrompt {
+  name: string;
+  provider_name: string;
+  prompt_template: string;
+  shortcut: string;
+}
+
+interface ShortcutConfig {
+  name: string;
+  shortcut: string;
+  command: any; // Using 'any' for simplicity, in a real app you'd define proper types
+}
+
 const LLMPromptInterface: React.FC = () => {
   const [configs, setConfigs] = useState<LLMConfig[]>([]);
   const [selectedConfig, setSelectedConfig] = useState<number | null>(null);
@@ -30,8 +45,11 @@ const LLMPromptInterface: React.FC = () => {
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
   const [loadingConfigs, setLoadingConfigs] = useState<boolean>(true);
+  const [customPrompts, setCustomPrompts] = useState<CustomPrompt[]>([]);
+  const [shortcuts, setShortcuts] = useState<ShortcutConfig[]>([]);
+  const pressedKeys = useRef(new Set<string>());
 
-  const loadConfigs = async () => {
+  const loadConfigs = React.useCallback(async () => {
     setLoadingConfigs(true);
     try {
       const fetchedConfigs = await invoke<LLMConfig[]>("get_llm_configs");
@@ -50,11 +68,156 @@ const LLMPromptInterface: React.FC = () => {
     } finally {
       setLoadingConfigs(false);
     }
-  };
+  }, [selectedConfig]);
 
-  useEffect(() => {
-    loadConfigs();
+  // Load custom prompts - using useCallback to maintain reference stability
+  const loadCustomPrompts = React.useCallback(async () => {
+    try {
+      console.log("Loading custom prompts...");
+      const prompts = await invoke<CustomPrompt[]>("get_custom_prompts");
+      console.log("Received custom prompts:", prompts.length);
+      setCustomPrompts(prompts);
+    } catch (error) {
+      console.error("Error loading custom prompts:", error);
+    }
   }, []);
+
+  // Load shortcuts - using useCallback to maintain reference stability
+  const loadShortcuts = React.useCallback(async () => {
+    try {
+      console.log("Loading shortcuts...");
+      const shortcuts = await invoke<ShortcutConfig[]>("get_shortcuts");
+      console.log("Received shortcuts:", shortcuts);
+      setShortcuts(shortcuts);
+    } catch (error) {
+      console.error("Error loading shortcuts:", error);
+    }
+  }, []);
+
+  // Execute a custom prompt based on name
+  const executeCustomPrompt = React.useCallback(async (promptName: string) => {
+    try {
+      await invoke("execute_custom_prompt", { promptName });
+    } catch (error) {
+      console.error(`Error executing custom prompt ${promptName}:`, error);
+    }
+  }, []);
+
+  // Handle keydown event
+  const handleKeyDown = React.useCallback((e: KeyboardEvent) => {
+    const key = normalizeKey(e.code);
+    pressedKeys.current.add(key);
+    
+    const currentKeys = sortKeys(Array.from(pressedKeys.current));
+    const currentTauriFormat = keysArrayToTauri(currentKeys);
+    
+    console.log(`Key pressed: ${key}, Current format: ${currentTauriFormat}, Shortcuts: ${shortcuts.length}`);
+    
+    // Find matching custom prompt - checking for the Prompt command type
+    // Note: The command structure from Rust comes through as { Prompt: { provider_name, prompt } }
+    const matchingPrompt = shortcuts.find(s => {
+      if (s.shortcut === currentTauriFormat && 
+          typeof s.command === 'object' && 
+          s.command !== null && 
+          'Prompt' in s.command) {
+        return true;
+      }
+      return false;
+    });
+    
+    if (matchingPrompt) {
+      console.log(`Matched custom prompt shortcut: ${matchingPrompt.name} (${matchingPrompt.shortcut})`);
+      executeCustomPrompt(matchingPrompt.name);
+    }
+    
+    // Also check for single key shortcuts if only one key is pressed
+    if (currentKeys.length === 1) {
+      const singleKeyFormat = keysArrayToTauri([key]);
+      
+      console.log(`Checking single key format: ${singleKeyFormat}`);
+      
+      const singleKeyPrompt = shortcuts.find(s => {
+        const isMatch = s.shortcut === singleKeyFormat && 
+                     typeof s.command === 'object' && 
+                     s.command !== null && 
+                     'Prompt' in s.command;
+        
+        if (isMatch) {
+          console.log(`Found matching shortcut: ${s.name} with shortcut ${s.shortcut}`);
+        }
+        
+        return isMatch;
+      });
+      
+      if (singleKeyPrompt) {
+        console.log(`Matched single key prompt shortcut: ${singleKeyPrompt.name} (${singleKeyPrompt.shortcut})`);
+        executeCustomPrompt(singleKeyPrompt.name);
+      }
+    }
+  }, [shortcuts, executeCustomPrompt]); // Re-create handler when shortcuts change
+
+  // Handle keyup event
+  const handleKeyUp = React.useCallback((e: KeyboardEvent) => {
+    const key = normalizeKey(e.code);
+    pressedKeys.current.delete(key);
+  }, []);
+
+  // Initial data loading and event listening
+  useEffect(() => {
+    const initializeData = async () => {
+      await loadConfigs();
+      await loadCustomPrompts();
+      await loadShortcuts();
+      
+      console.log("Initial data loading complete");
+    };
+    
+    initializeData();
+    
+    // Listen for shortcuts-updated events
+    const unlistenPromise = listen("shortcuts-updated", async () => {
+      console.log("Shortcuts updated event received");
+      
+      // First clear the current keys to avoid any stuck keys
+      pressedKeys.current.clear();
+      
+      // Force reload shortcuts when the event is received
+      await loadShortcuts();
+      await loadCustomPrompts(); // Also reload custom prompts to keep in sync
+      
+      console.log("Shortcuts reloaded after update event");
+    });
+    
+    // Cleanup listener on component unmount
+    return () => {
+      unlistenPromise.then(unlistenFn => unlistenFn());
+    };
+  }, [loadShortcuts, loadCustomPrompts, loadConfigs]);
+  
+  // Set up key event listeners when shortcuts change
+  useEffect(() => {
+    // First remove any existing listeners to avoid duplicates
+    window.removeEventListener("keydown", handleKeyDown);
+    window.removeEventListener("keyup", handleKeyUp);
+    
+    console.log("Setting up key event listeners with shortcuts:", shortcuts);
+    console.log("Current shortcuts mapping:", shortcuts.map(s => `${s.name}: ${s.shortcut}`).join(", "));
+    
+    // Clear any existing pressed keys when re-attaching listeners
+    pressedKeys.current.clear();
+    
+    // Add event listeners for key events
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    
+    // Clean up event listeners when component unmounts or shortcuts change
+    return () => {
+      console.log("Removing key event listeners");
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      pressedKeys.current.clear();
+    };
+  }, [shortcuts, handleKeyDown, handleKeyUp]); // Re-attach listeners when shortcuts or handlers change
 
   const handleSubmit = async (e: React.FormEvent) => {
     console.log("Submit attempt:", {

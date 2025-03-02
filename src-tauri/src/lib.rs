@@ -94,6 +94,7 @@ pub fn run() {
             shortcut::get_shortcuts,
             shortcut::unregister_shortcut,
             shortcut::update_shortcut,
+            shortcut::execute_custom_prompt,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

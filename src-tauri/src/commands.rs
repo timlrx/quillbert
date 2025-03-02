@@ -7,33 +7,30 @@ use tauri_plugin_clipboard_manager::ClipboardExt;
 
 /// Toggle query window
 pub fn toggle_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
-    let webview_windows = app.webview_windows();
-    let window_opt = webview_windows.get("focus");
-    let should_show = window_opt
-        .as_ref()
-        .map(|w| !w.is_visible().unwrap_or(false))
-        .unwrap_or(true);
-
-    if should_show {
-        // Create window if it doesn't exist, or show and focus if it exists but is hidden
-        match window_opt {
-            None => {
-                WebviewWindowBuilder::new(app, "focus", WebviewUrl::App("panel.html".into()))
-                    .inner_size(400.0, 400.0)
-                    .position(0.0, 0.0)
-                    .build()?;
-                println!("New window created");
-            }
-            Some(window) => {
+    let window_opt = app.get_webview_window("focus");
+    
+    match window_opt {
+        Some(window) => {
+            // Window exists, toggle visibility
+            if window.is_visible().unwrap_or(false) {
+                // Window is visible, hide it
+                window.hide()?;
+                println!("Window hidden");
+            } else {
+                // Window exists but is hidden, show it
                 window.show()?;
                 window.set_focus()?;
                 println!("Window in focus");
             }
+        },
+        None => {
+            // Window doesn't exist, create it
+            WebviewWindowBuilder::new(app, "focus", WebviewUrl::App("panel.html".into()))
+                .inner_size(400.0, 400.0)
+                .position(0.0, 0.0)
+                .build()?;
+            println!("New window created");
         }
-    } else if let Some(window) = window_opt {
-        // Hide the window if it exists and is visible
-        window.hide()?;
-        println!("Window hidden");
     }
 
     Ok(())
