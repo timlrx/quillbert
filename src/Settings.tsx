@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { ShortcutItem } from "@/components/ShortcutItem";
 import { useShortcutEditor } from "@/hooks/useShortcutEditor";
 import { tauriToKeysArray, keysArrayToTauri } from "@/utils/keyboardUtils";
-import { Save, Trash2, Edit2, Plus } from "lucide-react";
+import { Save, Trash2, Edit2, Plus, Loader2, Command } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
 
 interface ShortcutConfig {
@@ -52,9 +52,11 @@ const ShortcutEditor: React.FC<{
     });
 
   return (
-    <div className="mb-3 bg-white rounded-lg border border-gray-200">
-      <div className="p-4">
-        <div className="font-medium text-gray-800 mb-2">{shortcut.name}</div>
+    <div className="mb-2 bg-white rounded border border-gray-200">
+      <div className="p-2">
+        <div className="text-xs font-medium text-gray-700 mb-1">
+          {shortcut.name}
+        </div>
         <ShortcutItem
           shortcut={shortcutKeys}
           isEditing={isEditing}
@@ -217,20 +219,30 @@ const CustomPromptEditor: React.FC = () => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6 mt-8">
-      <h2 className="text-2xl font-bold text-gray-900 mb-6">Custom Prompts</h2>
+    <div className="p-3">
+      <div className="flex items-center justify-between border-b border-gray-200 pb-2 mb-3">
+        <h2 className="text-sm font-medium text-gray-700">Custom Prompts</h2>
+        {isEditing && (
+          <button
+            onClick={handleCancelEdit}
+            className="text-xs text-gray-500 hover:text-gray-700"
+          >
+            Cancel Editing
+          </button>
+        )}
+      </div>
 
       {promptError && (
-        <div className="bg-red-50 border border-red-200 text-red-600 p-4 rounded-lg mb-6">
+        <div className="bg-red-50 border border-red-200 text-red-500 text-xs p-2 rounded mb-3">
           {promptError}
         </div>
       )}
 
       {/* Prompt form */}
-      <div className="space-y-4 mb-8 border p-4 rounded-lg">
-        <div className="grid grid-cols-2 gap-4">
+      <div className="space-y-3 bg-gray-50 p-3 rounded border border-gray-200 mb-4">
+        <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-xs font-medium text-gray-600 mb-1">
               Prompt Name
             </label>
             <input
@@ -238,19 +250,19 @@ const CustomPromptEditor: React.FC = () => {
               name="name"
               value={currentPrompt.name}
               onChange={handleInputChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none"
               placeholder="e.g., Summarize Text"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-xs font-medium text-gray-600 mb-1">
               Provider
             </label>
             <select
               name="provider_name"
               value={currentPrompt.provider_name}
               onChange={handleInputChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none"
             >
               <option value="">Select a provider</option>
               {llmConfigs.map((config, index) => (
@@ -263,10 +275,10 @@ const CustomPromptEditor: React.FC = () => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-xs font-medium text-gray-600 mb-1">
             Shortcut
           </label>
-          <div className="w-full border border-gray-300 rounded-lg p-3">
+          <div className="w-full border border-gray-300 rounded p-2">
             <CustomShortcutEditor
               shortcut={currentPrompt.shortcut}
               onShortcutChange={(newShortcut) => {
@@ -280,83 +292,78 @@ const CustomPromptEditor: React.FC = () => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-xs font-medium text-gray-600 mb-1">
             Prompt Template
           </label>
           <textarea
             name="prompt_template"
             value={currentPrompt.prompt_template}
             onChange={handleInputChange}
-            rows={4}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            rows={3}
+            className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none"
             placeholder="Enter your prompt template..."
           ></textarea>
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-xs text-gray-500 mt-0.5">
             Use {"{{selectedText}}"} as a placeholder for the selected text
           </p>
         </div>
 
-        <div className="flex items-center justify-end space-x-2">
-          {isEditing && (
-            <button
-              onClick={handleCancelEdit}
-              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
-            >
-              Cancel
-            </button>
+        <button
+          onClick={handleSavePrompt}
+          className="w-full px-3 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors focus:outline-none flex items-center justify-center gap-1.5 text-xs"
+        >
+          {isEditing ? (
+            <Save className="h-3 w-3" />
+          ) : (
+            <Plus className="h-3 w-3" />
           )}
-          <button
-            onClick={handleSavePrompt}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2"
-          >
-            {isEditing ? (
-              <Save className="h-4 w-4" />
-            ) : (
-              <Plus className="h-4 w-4" />
-            )}
-            {isEditing ? "Update" : "Add"} Prompt
-          </button>
-        </div>
+          {isEditing ? "Update" : "Add"} Prompt
+        </button>
       </div>
 
       {/* List of saved prompts */}
       {customPrompts.length > 0 && (
         <div>
-          <h3 className="text-lg font-semibold mb-3">Saved Prompts</h3>
-          <div className="space-y-3">
+          <h3 className="text-xs font-medium text-gray-600 mb-2 border-b border-gray-200 pb-1">
+            Saved Prompts
+          </h3>
+          <div className="space-y-2 overflow-y-auto max-h-60">
             {customPrompts.map((prompt, index) => (
-              <div key={index} className="border rounded-lg p-4 bg-gray-50">
+              <div
+                key={index}
+                className="border rounded p-2 bg-gray-50 hover:bg-gray-100 transition-colors"
+              >
                 <div className="flex justify-between">
                   <div>
-                    <h4 className="font-medium">{prompt.name}</h4>
-                    <p className="text-sm text-gray-600">
+                    <h4 className="text-xs font-medium">{prompt.name}</h4>
+                    <p className="text-xs text-gray-600">
                       Provider: {prompt.provider_name}
                     </p>
                     {prompt.shortcut && (
-                      <p className="text-sm text-gray-600">
+                      <p className="text-xs text-gray-600">
                         Shortcut: {prompt.shortcut}
                       </p>
                     )}
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-1">
                     <button
                       onClick={() => handleEditPrompt(index)}
-                      className="p-2 text-blue-500 hover:bg-blue-50 rounded-full"
+                      className="p-1 text-blue-500 hover:bg-blue-50 rounded"
                       title="Edit"
                     >
-                      <Edit2 className="h-4 w-4" />
+                      <Edit2 className="h-3.5 w-3.5" />
                     </button>
                     <button
                       onClick={() => handleDeletePrompt(index)}
-                      className="p-2 text-red-500 hover:bg-red-50 rounded-full"
+                      className="p-1 text-red-500 hover:bg-red-50 rounded"
                       title="Delete"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 </div>
-                <div className="mt-2 bg-white p-3 rounded border border-gray-200 text-sm text-gray-700">
-                  <p className="whitespace-pre-wrap">
+                <div className="mt-1 bg-white p-2 rounded border border-gray-200 text-xs text-gray-700">
+                  <p className="whitespace-pre-wrap line-clamp-2">
                     {prompt.prompt_template}
                   </p>
                 </div>
@@ -426,35 +433,32 @@ const Settings: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <div className="flex items-center justify-center h-32">
-            <div className="text-gray-500">Loading...</div>
-          </div>
-        </div>
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-5 w-5 animate-spin text-blue-500 mr-2" />
+        <span className="text-sm text-gray-500">Loading shortcuts...</span>
       </div>
     );
   }
 
   return (
-    <main className="container mx-auto px-4 py-8 max-w-4xl">
+    <div className="flex flex-col h-full">
       {/* Navigation tabs */}
-      <div className="flex border-b mb-6">
+      <div className="flex border-b">
         <button
-          className={`px-6 py-3 font-medium ${
+          className={`px-4 py-2 text-xs font-medium ${
             activeTab === "shortcuts"
-              ? "border-b-2 border-blue-500 text-blue-500"
-              : "text-gray-500 hover:text-gray-700"
+              ? "border-b-2 border-blue-500 text-blue-700"
+              : "text-gray-600 hover:text-gray-800"
           }`}
           onClick={() => setActiveTab("shortcuts")}
         >
           System Shortcuts
         </button>
         <button
-          className={`px-6 py-3 font-medium ${
+          className={`px-4 py-2 text-xs font-medium ${
             activeTab === "prompts"
-              ? "border-b-2 border-blue-500 text-blue-500"
-              : "text-gray-500 hover:text-gray-700"
+              ? "border-b-2 border-blue-500 text-blue-700"
+              : "text-gray-600 hover:text-gray-800"
           }`}
           onClick={() => setActiveTab("prompts")}
         >
@@ -463,31 +467,38 @@ const Settings: React.FC = () => {
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-600 p-4 rounded-lg mb-6">
+        <div className="bg-red-50 border border-red-200 text-red-500 text-xs p-2 rounded m-3">
           {error}
         </div>
       )}
 
       {activeTab === "shortcuts" ? (
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <h1 className="text-2xl font-bold text-gray-900 mb-6">
-            System Shortcuts
-          </h1>
-          <div>
-            {shortcuts.map((shortcut, index) => (
-              <ShortcutEditor
-                key={index}
-                shortcut={shortcut}
-                index={index}
-                onSave={handleSaveShortcut}
-              />
-            ))}
+        <div className="p-3">
+          <div className="flex items-center justify-between border-b border-gray-200 pb-2 mb-3">
+            <h2 className="text-sm font-medium text-gray-700">
+              System Shortcuts
+            </h2>
+          </div>
+          <div className="overflow-y-auto">
+            {shortcuts
+              .filter((shortcut) => {
+                // Filter out shortcuts with CommandType.Prompt
+                return !shortcut.command.hasOwnProperty("Prompt");
+              })
+              .map((shortcut, index) => (
+                <ShortcutEditor
+                  key={index}
+                  shortcut={shortcut}
+                  index={index}
+                  onSave={handleSaveShortcut}
+                />
+              ))}
           </div>
         </div>
       ) : (
         <CustomPromptEditor />
       )}
-    </main>
+    </div>
   );
 };
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Edit2, Plus, Trash2 } from "lucide-react";
+import { Edit2, Plus, Trash2, Loader2 } from "lucide-react";
 import "./App.css";
 
 interface LLMConfig {
@@ -57,7 +57,7 @@ const LLMConfigurationManager: React.FC = () => {
   };
 
   const handleConfigChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
     const { name, value } = e.target;
     const numberFields = ["temperature", "max_tokens"];
@@ -102,7 +102,7 @@ const LLMConfigurationManager: React.FC = () => {
     } catch (error) {
       console.error("Error saving configuration:", error);
       setError(
-        typeof error === "string" ? error : "Failed to save configuration"
+        typeof error === "string" ? error : "Failed to save configuration",
       );
     } finally {
       setLoading(false);
@@ -136,7 +136,7 @@ const LLMConfigurationManager: React.FC = () => {
     } catch (error) {
       console.error("Error deleting configuration:", error);
       setError(
-        typeof error === "string" ? error : "Failed to delete configuration"
+        typeof error === "string" ? error : "Failed to delete configuration",
       );
     }
   };
@@ -149,194 +149,197 @@ const LLMConfigurationManager: React.FC = () => {
 
   if (initialLoading) {
     return (
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <div className="flex items-center justify-center h-32">
-            <div className="text-gray-500">Loading configurations...</div>
-          </div>
-        </div>
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-5 w-5 animate-spin text-blue-500 mr-2" />
+        <span className="text-sm text-gray-500">Loading configurations...</span>
       </div>
     );
   }
 
   return (
-    <main className="container mx-auto px-4 py-8 max-w-4xl">
-      <div className="bg-white rounded-lg shadow-lg p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">
-            LLM Configuration Manager
-          </h1>
-          {editingIndex !== null && (
-            <button
-              onClick={handleCancelEdit}
-              className="text-sm text-gray-500 hover:text-gray-700"
-            >
-              Cancel Editing
-            </button>
-          )}
-        </div>
+    <div className="p-4 flex flex-col h-full">
+      <div className="flex items-center justify-between border-b border-gray-200 pb-3 mb-4">
+        <h1 className="text-sm font-medium text-gray-700">
+          LLM Configurations
+        </h1>
+        {editingIndex !== null && (
+          <button
+            onClick={handleCancelEdit}
+            className="text-xs text-gray-500 hover:text-gray-700"
+          >
+            Cancel Editing
+          </button>
+        )}
+      </div>
 
-        <div className="space-y-6">
-          {error && (
-            <div className="bg-red-50 text-red-500 p-4 rounded-lg">{error}</div>
-          )}
+      <div className="space-y-4">
+        {error && (
+          <div className="bg-red-50 text-red-500 p-2 rounded text-xs border border-red-200">
+            {error}
+          </div>
+        )}
 
-          {/* Configuration Form */}
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Configuration Name
-                </label>
-                <input
-                  type="text"
-                  name="name"
-                  value={currentConfig.name}
-                  onChange={handleConfigChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder="Enter a unique name"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Provider
-                </label>
-                <select
-                  name="provider"
-                  value={currentConfig.provider}
-                  onChange={handleConfigChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                >
-                  <option value="openai">OpenAI</option>
-                  <option value="anthropic">Anthropic</option>
-                  <option value="ollama">Ollama</option>
-                  <option value="deepseek">DeepSeek</option>
-                  <option value="xai">XAI</option>
-                  <option value="phind">Phind</option>
-                  <option value="groq">Groq</option>
-                  <option value="google">Google</option>
-                </select>
-              </div>
+        {/* Configuration Form */}
+        <div className="space-y-3 bg-gray-50 p-3 rounded border border-gray-200">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Configuration Name
+              </label>
+              <input
+                type="text"
+                name="name"
+                value={currentConfig.name}
+                onChange={handleConfigChange}
+                className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                placeholder="Enter a unique name"
+              />
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  API Key
-                </label>
-                <input
-                  type="password"
-                  name="api_key"
-                  value={currentConfig.api_key}
-                  onChange={handleConfigChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder="Enter API key"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Model
-                </label>
-                <input
-                  type="text"
-                  name="model"
-                  value={currentConfig.model}
-                  onChange={handleConfigChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder="e.g. gpt-4"
-                />
-              </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Provider
+              </label>
+              <select
+                name="provider"
+                value={currentConfig.provider}
+                onChange={handleConfigChange}
+                className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none"
+              >
+                <option value="openai">OpenAI</option>
+                <option value="anthropic">Anthropic</option>
+                <option value="ollama">Ollama</option>
+                <option value="deepseek">DeepSeek</option>
+                <option value="xai">XAI</option>
+                <option value="phind">Phind</option>
+                <option value="groq">Groq</option>
+                <option value="google">Google</option>
+              </select>
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Temperature
-                </label>
-                <input
-                  type="number"
-                  name="temperature"
-                  value={currentConfig.temperature}
-                  onChange={handleConfigChange}
-                  step="0.1"
-                  min="0"
-                  max="2"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Max Tokens
-                </label>
-                <input
-                  type="number"
-                  name="max_tokens"
-                  value={currentConfig.max_tokens}
-                  onChange={handleConfigChange}
-                  min="1"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
-              </div>
-            </div>
-
-            <button
-              onClick={handleSaveConfig}
-              disabled={loading}
-              className="w-full px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:bg-blue-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              <Plus className="h-4 w-4" />
-              {loading
-                ? "Saving..."
-                : editingIndex !== null
-                ? "Update Configuration"
-                : "Add Configuration"}
-            </button>
           </div>
 
-          {/* Saved Configurations */}
-          {configs.length > 0 && (
-            <div className="mt-8">
-              <h2 className="text-xl font-medium mb-4">Saved Configurations</h2>
-              <div className="space-y-4">
-                {configs.map((config, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between p-4 border rounded-lg bg-gray-50"
-                  >
-                    <div className="flex-1">
-                      <div className="font-medium text-lg">{config.name}</div>
-                      <div className="text-sm text-gray-500">
-                        {config.provider} - {config.model}
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        Temperature: {config.temperature}, Max Tokens:{" "}
-                        {config.max_tokens}
-                      </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                API Key
+              </label>
+              <input
+                type="password"
+                name="api_key"
+                value={currentConfig.api_key}
+                onChange={handleConfigChange}
+                className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                placeholder="Enter API key"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Model
+              </label>
+              <input
+                type="text"
+                name="model"
+                value={currentConfig.model}
+                onChange={handleConfigChange}
+                className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                placeholder="e.g. gpt-4"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Temperature
+              </label>
+              <input
+                type="number"
+                name="temperature"
+                value={currentConfig.temperature}
+                onChange={handleConfigChange}
+                step="0.1"
+                min="0"
+                max="2"
+                className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Max Tokens
+              </label>
+              <input
+                type="number"
+                name="max_tokens"
+                value={currentConfig.max_tokens}
+                onChange={handleConfigChange}
+                min="1"
+                className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <button
+            onClick={handleSaveConfig}
+            disabled={loading}
+            className="w-full px-3 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors focus:outline-none disabled:bg-blue-300 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 text-xs"
+          >
+            {loading ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Plus className="h-3 w-3" />
+            )}
+            {loading
+              ? "Saving..."
+              : editingIndex !== null
+                ? "Update Configuration"
+                : "Add Configuration"}
+          </button>
+        </div>
+
+        {/* Saved Configurations */}
+        {configs.length > 0 && (
+          <div className="mt-4">
+            <h2 className="text-xs font-medium text-gray-600 mb-2 border-b border-gray-200 pb-1">
+              Saved Configurations
+            </h2>
+            <div className="space-y-2 overflow-y-auto max-h-48">
+              {configs.map((config, index) => (
+                <div
+                  key={index}
+                  className="flex items-center justify-between p-2 border rounded bg-gray-50 hover:bg-gray-100 transition-colors"
+                >
+                  <div className="flex-1">
+                    <div className="font-medium text-xs">{config.name}</div>
+                    <div className="text-xs text-gray-500">
+                      {config.provider} - {config.model}
                     </div>
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => handleEditConfig(index)}
-                        className="p-2 text-blue-500 hover:bg-blue-50 rounded-full transition-colors"
-                        title="Edit"
-                      >
-                        <Edit2 className="h-5 w-5" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteConfig(index)}
-                        className="p-2 text-red-500 hover:bg-red-50 rounded-full transition-colors"
-                        title="Delete"
-                      >
-                        <Trash2 className="h-5 w-5" />
-                      </button>
+                    <div className="text-xs text-gray-400">
+                      Temperature: {config.temperature}, Max Tokens:{" "}
+                      {config.max_tokens}
                     </div>
                   </div>
-                ))}
-              </div>
+                  <div className="flex space-x-1">
+                    <button
+                      onClick={() => handleEditConfig(index)}
+                      className="p-1 text-blue-500 hover:bg-blue-50 rounded transition-colors"
+                      title="Edit"
+                    >
+                      <Edit2 className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteConfig(index)}
+                      className="p-1 text-red-500 hover:bg-red-50 rounded transition-colors"
+                      title="Delete"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
-    </main>
+    </div>
   );
 };
 
