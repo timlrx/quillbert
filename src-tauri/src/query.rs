@@ -132,11 +132,18 @@ pub async fn get_custom_prompts(
     Ok(custom_prompts)
 }
 
+#[derive(Debug, Serialize, Clone)]
+pub struct PromptResponse {
+    pub prompt_name: String,
+    pub response: String,
+}
+
 /// Handle prompt command asynchronously
 async fn handle_prompt_command<R: Runtime>(
     app: &AppHandle<R>,
     provider_name: &str,
     prompt: &str,
+    prompt_name: &str,
 ) -> Result<(), String> {
     let state = app.state::<AppState>();
 
@@ -164,7 +171,19 @@ async fn handle_prompt_command<R: Runtime>(
 
     match result {
         Ok(response) => {
-            println!("Response: {}", response);
+            // Emit the response to the frontend
+            let prompt_response = PromptResponse {
+                prompt_name: prompt_name.to_string(),
+                response,
+            };
+            if let Some(focus_window) = app.get_webview_window("focus") {
+                focus_window
+                    .emit("prompt-response", prompt_response)
+                    .map_err(|e| {
+                        format!("Failed to emit prompt-response to focus window: {}", e)
+                    })?;
+            }
+
             Ok(())
         }
         Err(err) => {
@@ -199,7 +218,7 @@ pub async fn execute_custom_prompt<R: Runtime>(
     } = &prompt_shortcut.command
     {
         // Execute the prompt command asynchronously
-        handle_prompt_command(&app, provider_name, prompt).await
+        handle_prompt_command(&app, provider_name, prompt, &prompt_name).await
     } else {
         Err(format!("'{}' is not a custom prompt", prompt_name))
     }

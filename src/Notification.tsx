@@ -47,44 +47,43 @@ interface ShortcutItemProps {
   isProcessing: boolean;
 }
 
+// Selected text panel component
 const SelectedTextPanel: React.FC<{
   selectedText: string | null;
 }> = ({ selectedText }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  if (!selectedText) {
-    return (
-      <div className="border-t border-gray-200 p-4">
-        <div className="text-gray-400 text-xs italic text-center py-3">
-          No text selected. Select text before activating a prompt.
-        </div>
-      </div>
-    );
-  }
-
   // Calculate excerpt for longer texts
-  const isLongText = selectedText.length > 200;
+  const isLongText = selectedText && selectedText.length > 200;
   const excerpt = isLongText
     ? `${selectedText.slice(0, 150).trim()}...`
     : selectedText;
   const wordCount = selectedText
-    .split(/\s+/)
-    .filter((word) => word.length > 0).length;
-  const charCount = selectedText.length;
+    ? selectedText.split(/\s+/).filter((word) => word.length > 0).length
+    : 0;
+  const charCount = selectedText ? selectedText.length : 0;
 
   return (
     <div className="border-t border-gray-200 p-4">
       <div className="flex items-center justify-between mb-2">
         <h2 className="text-xs font-medium text-gray-600">Selected Text</h2>
         <div className="text-xs text-gray-500">
-          {wordCount} words | {charCount} chars
+          {selectedText ? `${wordCount} words | ${charCount} chars` : ""}
         </div>
       </div>
 
-      <div
-        className={`p-2 text-xs bg-gray-50 border border-gray-200 rounded-md ${isExpanded ? "max-h-60" : "max-h-20"} overflow-y-auto whitespace-pre-wrap break-words transition-all duration-300 ease-in-out`}
-      >
-        {isExpanded ? selectedText : excerpt}
+      <div className="h-[60px] min-h-[60px]">
+        {selectedText ? (
+          <div
+            className={`p-2 text-xs bg-gray-50 border border-gray-200 rounded-md h-full ${isExpanded ? "max-h-60" : ""} overflow-y-auto whitespace-pre-wrap break-words transition-all duration-300 ease-in-out`}
+          >
+            {isExpanded ? selectedText : excerpt}
+          </div>
+        ) : (
+          <div className="p-2 text-xs bg-gray-50 border border-gray-200 rounded-md h-full flex items-center justify-center text-gray-400 italic">
+            No text selected. Select text before activating a prompt.
+          </div>
+        )}
       </div>
 
       {isLongText && (
@@ -129,6 +128,56 @@ const ShortcutItem: React.FC<ShortcutItemProps> = ({
   );
 };
 
+interface PromptResponse {
+  prompt_name: string;
+  response: string;
+}
+
+const ResponsePanel: React.FC<{
+  response: PromptResponse | null;
+}> = ({ response }) => {
+  const [isExpanded, setIsExpanded] = useState(true);
+
+  return (
+    <div className="border-t border-gray-200 p-4">
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="text-xs font-medium text-gray-600">
+          Response:{" "}
+          <span className="text-blue-600">
+            {response ? response.prompt_name : "None"}
+          </span>
+        </h2>
+        {response && (
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="text-xs text-gray-500 hover:text-gray-700 transition-colors focus:outline-none"
+          >
+            {isExpanded ? "Hide" : "Show"}
+          </button>
+        )}
+      </div>
+
+      <div className="h-[60px] min-h-[60px]">
+        {response ? (
+          isExpanded ? (
+            <div className="p-2 text-xs bg-blue-50 border border-blue-200 rounded-md h-full max-h-60 overflow-y-auto whitespace-pre-wrap break-words">
+              {response.response}
+            </div>
+          ) : (
+            <div className="p-2 text-xs bg-gray-50 border border-gray-200 rounded-md h-full flex items-center justify-center text-gray-400 italic">
+              Response hidden. Click "Show" to view.
+            </div>
+          )
+        ) : (
+          <div className="p-2 text-xs bg-gray-50 border border-gray-200 rounded-md h-full flex items-center justify-center text-gray-400 italic">
+            No response yet. Execute a prompt to see results here.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const Notification: React.FC = () => {
   const [customPrompts, setCustomPrompts] = useState<CustomPrompt[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -136,6 +185,9 @@ const Notification: React.FC = () => {
   const [shortcuts, setShortcuts] = useState<ShortcutConfig[]>([]);
   const [processingPrompt, setProcessingPrompt] = useState<string | null>(null);
   const [selectedText, setSelectedText] = useState<string | null>(null);
+  const [promptResponse, setPromptResponse] = useState<PromptResponse | null>(
+    null,
+  );
   const [status, setStatus] = useState<NotificationStatus>({
     active: false,
     promptName: null,
@@ -217,18 +269,18 @@ const Notification: React.FC = () => {
       try {
         console.log(`Executing custom prompt: ${promptName}`);
 
+        // Clear previous response when starting a new prompt
+        setPromptResponse(null);
+
         // Set processing state and show loading status
         setProcessingPrompt(promptName);
         showStatus("loading", promptName, `Processing "${promptName}"...`);
 
+        // We don't immediately clear processing state since it will be cleared
+        // when we receive the prompt-response event
         await invoke("execute_custom_prompt", { promptName });
 
-        // Show success status
-        showStatus(
-          "success",
-          promptName,
-          `Successfully processed "${promptName}"`,
-        );
+        // Note: we no longer show success status here - that's handled by the event listener
       } catch (err) {
         console.error(`Error executing custom prompt ${promptName}:`, err);
         const errorMessage =
@@ -239,8 +291,8 @@ const Notification: React.FC = () => {
 
         // Show error status
         showStatus("error", promptName, errorMessage);
-      } finally {
-        // Clear processing state
+
+        // Clear processing state on error
         setProcessingPrompt(null);
       }
     },
@@ -358,24 +410,74 @@ const Notification: React.FC = () => {
 
   // Load data and setup event listeners when component mounts
   useEffect(() => {
+    // Function to retrieve selected text
+    const retrieveSelectedText = async () => {
+      try {
+        const text = await invoke<string>("get_selected_text");
+        setSelectedText(text.trim() === "" ? null : text);
+      } catch (err) {
+        console.error("Error fetching selected text:", err);
+        setSelectedText(null);
+      }
+    };
+
+    // Initial load of custom prompts
     loadCustomPrompts();
 
+    // Initial fetch of selected text
+    retrieveSelectedText();
+
+    // Listen for shortcuts-updated events
     const unlistenPromises: Promise<() => void>[] = [];
 
     // Listen for shortcut updates
     const shortcutsPromise = listen("shortcuts-updated", () => {
       console.log("Shortcuts updated event received");
+
+      // First clear the current keys to avoid any stuck keys
       pressedKeys.current.clear();
+
+      // Reload both custom prompts and shortcuts
       loadCustomPrompts();
     });
     unlistenPromises.push(shortcutsPromise);
 
+    // Listen for window-shown event (when the toggle window command shows the window)
+    const windowShownPromise = listen("window-shown", () => {
+      console.log("Window shown event received");
+
+      // Refresh the selected text when window is shown
+      retrieveSelectedText();
+    });
+    unlistenPromises.push(windowShownPromise);
+
     // Listen for selected-text event from the Rust backend
     const selectedTextPromise = listen("selected-text", (event) => {
+      console.log("Selected text event received");
+
+      // The payload contains the selected text
       const text = event.payload as string;
       setSelectedText(text.trim() === "" ? null : text);
     });
     unlistenPromises.push(selectedTextPromise);
+
+    // Listen for prompt-response events from the Rust backend
+    const promptResponsePromise = listen("prompt-response", (event) => {
+      console.log("Prompt response event received", event);
+
+      // The payload contains the prompt response
+      const response = event.payload as PromptResponse;
+      setPromptResponse(response);
+
+      // Clear processing state and update status to success
+      setProcessingPrompt(null);
+      showStatus(
+        "success",
+        response.prompt_name,
+        `Successfully processed "${response.prompt_name}"`,
+      );
+    });
+    unlistenPromises.push(promptResponsePromise);
 
     // Cleanup listener and timeouts on component unmount
     return () => {
@@ -394,7 +496,18 @@ const Notification: React.FC = () => {
       <div className="flex items-center px-4 py-3 border-b border-gray-200">
         <h1 className="text-sm font-medium text-gray-700">Prompts</h1>
         <button
-          onClick={() => loadCustomPrompts()}
+          onClick={() => {
+            loadCustomPrompts();
+            // Clear existing response
+            setPromptResponse(null);
+            // Will retrieve selected text inline using same approach as in useEffect
+            invoke<string>("get_selected_text")
+              .then((text) => setSelectedText(text.trim() === "" ? null : text))
+              .catch((err) => {
+                console.error("Error fetching selected text:", err);
+                setSelectedText(null);
+              });
+          }}
           disabled={loading}
           className="ml-2 text-gray-400 hover:text-gray-600 transition-colors"
           aria-label="Refresh shortcuts"
@@ -404,6 +517,8 @@ const Notification: React.FC = () => {
           />
         </button>
         <div className="flex-grow"></div>
+
+        {/* Inline status indicator with fixed height/width to prevent layout shift */}
         <div className="h-6 min-w-[200px] flex items-center justify-end">
           {status.active && (
             <div
@@ -460,7 +575,12 @@ const Notification: React.FC = () => {
           ))}
         </div>
       )}
+
+      {/* Selected Text Panel */}
       <SelectedTextPanel selectedText={selectedText} />
+
+      {/* Response Panel */}
+      <ResponsePanel response={promptResponse} />
     </div>
   );
 };
