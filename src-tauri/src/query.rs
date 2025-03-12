@@ -176,11 +176,11 @@ async fn handle_prompt_command<R: Runtime>(
                 prompt_name: prompt_name.to_string(),
                 response,
             };
-            if let Some(focus_window) = app.get_webview_window("focus") {
-                focus_window
+            if let Some(main_window) = app.get_webview_window("main") {
+                main_window
                     .emit("prompt-response", prompt_response)
                     .map_err(|e| {
-                        format!("Failed to emit prompt-response to focus window: {}", e)
+                        format!("Failed to emit prompt-response to main window: {}", e)
                     })?;
             }
 

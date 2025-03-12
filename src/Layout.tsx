@@ -38,12 +38,16 @@ const Navbar: React.FC = () => {
   );
 };
 
-const Layout: React.FC = () => {
+interface LayoutProps {
+  children?: React.ReactNode;
+}
+
+const Layout: React.FC<LayoutProps> = ({ children }) => {
   return (
     <div className="flex flex-col h-screen bg-white">
       <Navbar />
       <main className="flex-1 overflow-auto">
-        <Outlet />
+        {children || <Outlet />}
       </main>
     </div>
   );

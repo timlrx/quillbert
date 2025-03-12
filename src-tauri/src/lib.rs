@@ -7,7 +7,7 @@ use settings::AppState;
 use tauri::{
     menu::{Menu, MenuEvent, MenuItem},
     tray::TrayIconBuilder,
-    AppHandle, Manager,
+    AppHandle, Manager, WebviewUrl, WebviewWindowBuilder,
 };
 
 #[tauri::command]
@@ -18,8 +18,21 @@ fn greet(name: &str) -> String {
 pub fn tray_event_handler(app: &AppHandle, event: MenuEvent) {
     match event.id.as_ref() {
         "open" => {
-            let window = app.get_webview_window("main");
-            match window {
+            // Toggle the main window (notifications)
+            if let Some(window) = app.get_webview_window("main") {
+                if window.is_visible().unwrap_or(false) {
+                    window.hide().unwrap();
+                } else {
+                    window.show().unwrap();
+                    window.set_focus().unwrap();
+                }
+            }
+        }
+        "settings" => {
+            // Try to get the settings window
+            let window_opt = app.get_webview_window("settings");
+
+            match window_opt {
                 Some(w) => {
                     let win_is_open = w.is_visible().unwrap();
                     match win_is_open {
@@ -30,7 +43,18 @@ pub fn tray_event_handler(app: &AppHandle, event: MenuEvent) {
                         true => {}
                     }
                 }
-                None => (),
+                None => {
+                    // Window doesn't exist, create it
+                    WebviewWindowBuilder::new(
+                        app,
+                        "settings",
+                        WebviewUrl::App("side_panel.html".into()),
+                    )
+                    .title("Quillbert Settings")
+                    .inner_size(800.0, 600.0)
+                    .build()
+                    .expect("Failed to create settings window");
+                }
             }
         }
         "quit" => app.exit(0),
@@ -40,9 +64,10 @@ pub fn tray_event_handler(app: &AppHandle, event: MenuEvent) {
 
 pub fn setup_system_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let open_item = MenuItem::with_id(app, "open", "Open", true, None::<&str>)?;
+    let settings_item = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
     let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
 
-    let tray_menu = Menu::with_items(app, &[&open_item, &quit_item])?;
+    let tray_menu = Menu::with_items(app, &[&open_item, &settings_item, &quit_item])?;
 
     let _tray = TrayIconBuilder::new()
         .menu(&tray_menu)
@@ -68,13 +93,24 @@ pub fn run() {
         })
         // .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            // let webview = app.get_webview_window("main").unwrap();
-            // webview.set_size(LogicalSize::new(200.0, 200.0)).unwrap();
-            // webview.set_decorations(false).unwrap();
-            // webview
-            //     .set_position(tauri::LogicalPosition::new(0.0, 0.0))
-            //     .unwrap();
             println!("Setting up app...");
+
+            // Position the main window in the top right corner
+            if let Some(main_window) = app.get_webview_window("main") {
+                if let Ok(monitor_opt) = main_window.primary_monitor() {
+                    let monitor = monitor_opt.expect("Failed to get monitor");
+                    let monitor_size = monitor.size();
+                    let window_size = main_window.inner_size().unwrap();
+                    let window_width = window_size.width;
+
+                    let right_padding = 0; // px from right
+                    let x = monitor_size.width - window_width - right_padding;
+                    let y = 20; // px from top
+
+                    let _ = main_window.set_position(tauri::LogicalPosition::new(x, y));
+                }
+            }
+
             let app_state =
                 AppState::new(&app.app_handle()).expect("Failed to initialize LLM config state");
             app.manage(app_state);

@@ -24,7 +24,6 @@ const Notification: React.FC = () => {
   const {
     status,
     showStatus,
-    hideStatus,
     cleanup: cleanupStatus,
   } = useStatusNotification();
 

@@ -7,7 +7,7 @@ use tauri_plugin_clipboard_manager::ClipboardExt;
 
 /// Toggle query window
 pub fn toggle_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
-    let window_opt = app.get_webview_window("focus");
+    let window_opt = app.get_webview_window("main");
 
     match window_opt {
         Some(window) => {
@@ -24,12 +24,12 @@ pub fn toggle_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Res
             }
         }
         None => {
-            // Window doesn't exist, create it
-            WebviewWindowBuilder::new(app, "focus", WebviewUrl::App("panel.html".into()))
+            // Window doesn't exist, create it (though this should rarely happen with main window)
+            WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
                 .inner_size(400.0, 400.0)
                 .position(0.0, 0.0)
                 .build()?;
-            println!("New window created");
+            println!("New main window created");
         }
     }
 
@@ -77,11 +77,11 @@ pub fn get_selected_text<R: tauri::Runtime>(
     // Get the selected text
     let selected_text = app.clipboard().read_text()?;
 
-    // Emit event to focus window with the selected text
-    if let Some(focus_window) = app.get_webview_window("focus") {
-        focus_window
+    // Emit event to main window with the selected text
+    if let Some(main_window) = app.get_webview_window("main") {
+        main_window
             .emit("selected-text", selected_text.clone())
-            .map_err(|e| format!("Failed to emit selected-text to focus window: {}", e))?;
+            .map_err(|e| format!("Failed to emit selected-text to main window: {}", e))?;
     }
 
     // Restore original clipboard contents

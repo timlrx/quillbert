@@ -190,10 +190,17 @@ pub async fn update_shortcut<R: Runtime>(
     }
 
     // Emit an event to notify the frontend that shortcuts have been updated
-    if let Some(focus_window) = app.get_webview_window("focus") {
-        focus_window
+    if let Some(main_window) = app.get_webview_window("main") {
+        main_window
             .emit("shortcuts-updated", ())
-            .map_err(|e| format!("Failed to emit shortcuts-updated to focus window: {}", e))?;
+            .map_err(|e| format!("Failed to emit shortcuts-updated to main window: {}", e))?;
+    }
+    
+    // Also emit to the settings window if it exists
+    if let Some(settings_window) = app.get_webview_window("settings") {
+        settings_window
+            .emit("shortcuts-updated", ())
+            .map_err(|e| format!("Failed to emit shortcuts-updated to settings window: {}", e))?;
     }
 
     Ok(())

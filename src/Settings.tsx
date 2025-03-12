@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { ShortcutItem } from "@/components/ShortcutItem";
 import { useShortcutEditor } from "@/hooks/useShortcutEditor";
 import { tauriToKeysArray, keysArrayToTauri } from "@/utils/keyboardUtils";
-import { Save, Trash2, Edit2, Plus, Loader2, Command } from "lucide-react";
+import { Save, Trash2, Edit2, Plus, Loader2 } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
 
 interface ShortcutConfig {
@@ -112,7 +112,7 @@ const CustomPromptEditor: React.FC = () => {
     shortcut: "",
   });
   const [isEditing, setIsEditing] = useState(false);
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [, setEditingIndex] = useState<number | null>(null);
   const [promptError, setPromptError] = useState<string>("");
 
   useEffect(() => {

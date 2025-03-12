@@ -1,12 +1,11 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { createBrowserRouter, RouterProvider } from "react-router";
+import { createMemoryRouter, RouterProvider } from "react-router";
 import App from "./App";
 import Settings from "./Settings";
 import Layout from "./Layout";
-import "./App.css";
 
-const router = createBrowserRouter([
+const router = createMemoryRouter([
   {
     path: "/",
     element: <Layout />,
@@ -23,6 +22,7 @@ const router = createBrowserRouter([
   },
 ]);
 
+// For the settings window, we directly render the Settings component
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <RouterProvider router={router} />
