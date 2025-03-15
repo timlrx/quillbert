@@ -48,7 +48,7 @@ pub fn tray_event_handler(app: &AppHandle, event: MenuEvent) {
                     WebviewWindowBuilder::new(
                         app,
                         "settings",
-                        WebviewUrl::App("side_panel.html".into()),
+                        WebviewUrl::App("settings.html".into()),
                     )
                     .title("Quillbert Settings")
                     .inner_size(800.0, 600.0)
