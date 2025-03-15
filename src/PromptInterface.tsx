@@ -10,7 +10,7 @@ import SelectedTextPanel from "@/components/SelectedTextPanel";
 import ResponsePanel from "@/components/ResponsePanel";
 import "./App.css";
 
-const Notification: React.FC = () => {
+const PromptInterface: React.FC = () => {
   const [customPrompts, setCustomPrompts] = useState<CustomPrompt[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,14 +31,10 @@ const Notification: React.FC = () => {
   const loadCustomPrompts = useCallback(async (): Promise<void> => {
     setLoading(true);
     try {
-      console.log("Loading custom prompts and shortcuts...");
       const [prompts, shortcutConfigs] = await Promise.all([
         invoke<CustomPrompt[]>("get_custom_prompts"),
         invoke<any[]>("get_shortcuts"),
       ]);
-
-      console.log("Received custom prompts:", prompts.length);
-      console.log("Received shortcuts:", shortcutConfigs.length);
 
       setCustomPrompts(prompts);
       setShortcuts(shortcutConfigs);
@@ -97,15 +93,6 @@ const Notification: React.FC = () => {
   // Handle refresh button
   const handleRefresh = useCallback(() => {
     loadCustomPrompts();
-    // Clear existing response
-    setPromptResponse(null);
-    // Will retrieve selected text inline using same approach as in useEffect
-    invoke<string>("get_selected_text")
-      .then((text) => setSelectedText(text.trim() === "" ? null : text))
-      .catch((err) => {
-        console.error("Error fetching selected text:", err);
-        setSelectedText(null);
-      });
   }, [loadCustomPrompts]);
 
   // Load data and setup event listeners when component mounts
@@ -217,4 +204,4 @@ const Notification: React.FC = () => {
   );
 };
 
-export default Notification;
+export default PromptInterface;
