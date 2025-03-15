@@ -15,9 +15,14 @@ fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
+#[tauri::command]
+fn open_settings_window(app: tauri::AppHandle) -> tauri::Result<()> {
+    commands::open_settings_window(&app)
+}
+
 pub fn tray_event_handler(app: &AppHandle, event: MenuEvent) {
     match event.id.as_ref() {
-        "open" => {
+        "toggle" => {
             // Toggle the main window (notifications)
             if let Some(window) = app.get_webview_window("main") {
                 if window.is_visible().unwrap_or(false) {
@@ -63,8 +68,8 @@ pub fn tray_event_handler(app: &AppHandle, event: MenuEvent) {
 }
 
 pub fn setup_system_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
-    let open_item = MenuItem::with_id(app, "open", "Open", true, None::<&str>)?;
-    let settings_item = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
+    let open_item = MenuItem::with_id(app, "toggle", "Toggle Prompt Window", true, None::<&str>)?;
+    let settings_item = MenuItem::with_id(app, "settings", "Settings...", true, None::<&str>)?;
     let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
 
     let tray_menu = Menu::with_items(app, &[&open_item, &settings_item, &quit_item])?;
@@ -131,6 +136,7 @@ pub fn run() {
             shortcut::get_shortcuts,
             shortcut::unregister_shortcut,
             shortcut::update_shortcut,
+            open_settings_window,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

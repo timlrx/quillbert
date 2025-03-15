@@ -36,6 +36,37 @@ pub fn toggle_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Res
     Ok(())
 }
 
+/// Open the settings window
+pub fn open_settings_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
+    // Try to get the settings window
+    let window_opt = app.get_webview_window("settings");
+
+    match window_opt {
+        Some(window) => {
+            // Window exists, ensure it's visible
+            if !window.is_visible().unwrap_or(false) {
+                window.show()?;
+            }
+            window.set_focus()?;
+            println!("Settings window in focus");
+        }
+        None => {
+            // Window doesn't exist, create it
+            WebviewWindowBuilder::new(
+                app,
+                "settings",
+                WebviewUrl::App("settings.html".into()),
+            )
+            .title("Quillbert Settings")
+            .inner_size(800.0, 600.0)
+            .build()?;
+            println!("New settings window created");
+        }
+    }
+
+    Ok(())
+}
+
 pub fn get_cursor_position<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
 ) -> tauri::Result<PhysicalPosition<f64>> {
