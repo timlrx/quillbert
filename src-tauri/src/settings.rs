@@ -33,7 +33,7 @@ pub enum CommandType {
     ToggleWindow,
     GetCursorPosition,
     GetSelectedText,
-    PrintHello,
+    PasteOutput,
     Prompt {
         provider_name: String,
         prompt: String,
@@ -84,6 +84,11 @@ impl Default for Settings {
                     command: CommandType::ToggleWindow,
                 },
                 ShortcutConfig {
+                    name: "Paste Output".to_string(),
+                    shortcut: "cmd+shift+h".to_string(),
+                    command: CommandType::PasteOutput,
+                },
+                ShortcutConfig {
                     name: "Get Cursor Position".to_string(),
                     shortcut: "shift+k".to_string(),
                     command: CommandType::GetCursorPosition,
@@ -92,11 +97,6 @@ impl Default for Settings {
                     name: "Get Selected Text".to_string(),
                     shortcut: "shift+j".to_string(),
                     command: CommandType::GetSelectedText,
-                },
-                ShortcutConfig {
-                    name: "Print Hello".to_string(),
-                    shortcut: "shift+h".to_string(),
-                    command: CommandType::PrintHello,
                 },
                 ShortcutConfig {
                     name: "Fix Grammar".to_string(),
@@ -197,7 +197,10 @@ impl SettingsManager {
         Ok(())
     }
 
-    pub fn get_llm_config(&self, name: &str) -> Result<ProviderConfig, Box<dyn std::error::Error>> {
+    pub fn get_llm_config(
+        &self,
+        name: &str,
+    ) -> Result<ProviderConfig, Box<dyn std::error::Error + Send + Sync>> {
         let settings = self.settings.read().map_err(|e| e.to_string())?;
         settings
             .llm_providers
@@ -235,6 +238,7 @@ impl SettingsManager {
 pub struct AppState {
     pub settings_manager: SettingsManager,
     pub selected_text: AsyncRwLock<Option<String>>,
+    pub last_response: AsyncRwLock<Option<String>>,
 }
 
 impl AppState {
@@ -242,6 +246,7 @@ impl AppState {
         Ok(Self {
             settings_manager: SettingsManager::new(app_handle)?,
             selected_text: AsyncRwLock::new(None),
+            last_response: AsyncRwLock::new(None),
         })
     }
 
@@ -265,7 +270,7 @@ impl AppState {
         &self,
         provider_name: &str,
         prompt: String,
-    ) -> Result<String, Box<dyn std::error::Error>> {
+    ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
         // Get provider config
         let config = self.settings_manager.get_llm_config(provider_name)?;
 
@@ -281,7 +286,7 @@ impl AppState {
         // Submit to LLM
         llm.chat(&messages)
             .await
-            .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))
+            .map_err(|e| Box::<dyn std::error::Error + Send + Sync>::from(e.to_string()))
     }
 
     pub fn get_llm_configs(&self) -> Result<Vec<ProviderConfig>, Box<dyn std::error::Error>> {
@@ -302,5 +307,19 @@ impl AppState {
             .max_tokens(config.max_tokens)
             .build()
             .map_err(|e| e.to_string())
+    }
+
+    pub async fn set_latest_output(
+        &self,
+        output: String,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let mut latest_output = self.last_response.write().await;
+        *latest_output = Some(output);
+        Ok(())
+    }
+
+    pub async fn get_latest_output(&self) -> Option<String> {
+        let latest_output = self.last_response.read().await;
+        latest_output.clone()
     }
 }

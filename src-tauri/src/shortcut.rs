@@ -64,7 +64,6 @@ fn handle_shortcut_commands<R: Runtime>(app: &AppHandle<R>, command: &CommandTyp
             match commands::get_selected_text(app) {
                 Ok(text) => {
                     let state = app.state::<AppState>();
-                    // Use blocking_write since we're in a non-async context
                     let mut selected_text = state.selected_text.blocking_write();
                     *selected_text = Some(text);
                 }
@@ -77,21 +76,30 @@ fn handle_shortcut_commands<R: Runtime>(app: &AppHandle<R>, command: &CommandTyp
         CommandType::GetCursorPosition => {
             let pos = commands::get_cursor_position(app).unwrap();
             println!("App cursor position: {:?}", pos);
-            println!("GetCursorPosition command triggered");
         }
-        CommandType::GetSelectedText => {
-            println!("GetSelectedText command triggered");
-            match commands::get_selected_text(app) {
-                Ok(text) => {
-                    println!("Selected text: {}", text);
-                }
-                Err(e) => {
-                    println!("Error getting selected text: {}", e);
-                }
+        CommandType::GetSelectedText => match commands::get_selected_text(app) {
+            Ok(text) => {
+                println!("Selected text: {}", text);
             }
-        }
-        CommandType::PrintHello => {
-            println!("PrintHello command triggered");
+            Err(e) => {
+                println!("Error getting selected text: {}", e);
+            }
+        },
+        CommandType::PasteOutput => {
+            let state = app.state::<AppState>();
+            let response_opt = state.last_response.blocking_read();
+            if let Some(text) = response_opt.clone() {
+                if !text.is_empty() {
+                    match commands::paste_text_at_cursor(app, text) {
+                        Ok(_) => {}
+                        Err(e) => println!("Error pasting text: {}", e),
+                    }
+                } else {
+                    println!("No response available to paste (empty response)");
+                }
+            } else {
+                println!("No response available to paste (no response found)");
+            }
         }
         CommandType::Prompt {
             provider_name: _,
@@ -99,6 +107,32 @@ fn handle_shortcut_commands<R: Runtime>(app: &AppHandle<R>, command: &CommandTyp
         } => {
             // Pass since prompt command is no longer handled by global shortcut plugin
         }
+    }
+}
+
+/// Paste given text at cursor position
+#[tauri::command]
+pub async fn paste_output<R: Runtime>(app: AppHandle<R>, text: String) -> Result<(), String> {
+    commands::paste_text_at_cursor(&app, text).map_err(|e| format!("Failed to paste text: {}", e))
+}
+
+/// Paste the most recent response at cursor position
+#[tauri::command]
+pub async fn paste_recent_response<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    let state = app.state::<AppState>();
+
+    // Use read() instead of blocking_read() since we're in an async context
+    let response_opt = state.last_response.read().await;
+
+    if let Some(text) = response_opt.clone() {
+        if !text.is_empty() {
+            commands::paste_text_at_cursor(&app, text)
+                .map_err(|e| format!("Failed to paste text: {}", e))
+        } else {
+            Err("No response available to paste (empty response)".to_string())
+        }
+    } else {
+        Err("No response available to paste (no response found)".to_string())
     }
 }
 
@@ -195,7 +229,7 @@ pub async fn update_shortcut<R: Runtime>(
             .emit("shortcuts-updated", ())
             .map_err(|e| format!("Failed to emit shortcuts-updated to main window: {}", e))?;
     }
-    
+
     // Also emit to the settings window if it exists
     if let Some(settings_window) = app.get_webview_window("settings") {
         settings_window

@@ -172,6 +172,9 @@ const PromptInterface: React.FC = () => {
     };
   }, [loadCustomPrompts, showStatus, cleanupStatus]);
 
+  // We've moved the response management to the backend
+  // No need for the get-latest-response event listener anymore
+
   return (
     <div className="flex flex-col h-full">
       <NotificationHeader

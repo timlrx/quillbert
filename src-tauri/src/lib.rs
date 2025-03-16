@@ -136,6 +136,8 @@ pub fn run() {
             shortcut::get_shortcuts,
             shortcut::unregister_shortcut,
             shortcut::update_shortcut,
+            shortcut::paste_output,
+            shortcut::paste_recent_response,
             open_settings_window,
         ])
         .run(tauri::generate_context!())

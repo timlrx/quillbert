@@ -171,6 +171,10 @@ async fn handle_prompt_command<R: Runtime>(
 
     match result {
         Ok(response) => {
+            // Store the latest output for PasteOutput command
+            if let Err(err) = state.set_latest_output(response.clone()).await {
+                println!("Error storing latest output: {}", err);
+            }
             // Emit the response to the frontend
             let prompt_response = PromptResponse {
                 prompt_name: prompt_name.to_string(),
@@ -179,9 +183,7 @@ async fn handle_prompt_command<R: Runtime>(
             if let Some(main_window) = app.get_webview_window("main") {
                 main_window
                     .emit("prompt-response", prompt_response)
-                    .map_err(|e| {
-                        format!("Failed to emit prompt-response to main window: {}", e)
-                    })?;
+                    .map_err(|e| format!("Failed to emit prompt-response to main window: {}", e))?;
             }
 
             Ok(())
