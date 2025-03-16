@@ -2,7 +2,7 @@ use enigo::{
     Direction::{Click, Press, Release},
     Enigo, Key, Keyboard, Settings,
 };
-use tauri::{Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
 /// Toggle query window
@@ -65,13 +65,6 @@ pub fn open_settings_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tau
     }
 
     Ok(())
-}
-
-pub fn get_cursor_position<R: tauri::Runtime>(
-    app: &tauri::AppHandle<R>,
-) -> tauri::Result<PhysicalPosition<f64>> {
-    let cursor_position = app.cursor_position()?;
-    Ok(cursor_position)
 }
 
 pub fn get_selected_text<R: tauri::Runtime>(
