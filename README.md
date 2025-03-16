@@ -2,7 +2,7 @@
 
 Quillbert is a keyboard-first LLM prompt assistant built with Tauri. It allows you to quickly summarize, expand, edit, and transform selected text using customizable keyboard shortcuts, and can easily be extended to use custom LLM providers and prompt templates.
 
-![Quillbert Demo Video](./demo.mp4)
+https://github.com/user-attachments/assets/75b2999e-89ba-488b-a713-b06760b4c69b
 
 ## Features
 
