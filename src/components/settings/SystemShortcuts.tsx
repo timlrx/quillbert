@@ -88,7 +88,7 @@ const ShortcutEditor: React.FC<{
             "Get Cursor Position"}
           {shortcut.command.GetSelectedText !== undefined &&
             "Get Selected Text"}
-          {shortcut.command.PrintHello !== undefined && "Print Hello"}
+          {shortcut.command.PasteOutput !== undefined && "Paste Output"}
         </div>
       </div>
 
