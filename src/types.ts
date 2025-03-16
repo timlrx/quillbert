@@ -5,6 +5,13 @@ export interface CustomPrompt {
   shortcut: string;
 }
 
+export interface CustomPromptConfig {
+  name: string;
+  provider_name: string;
+  prompt_template: string;
+  shortcut: string;
+}
+
 export interface ShortcutConfig {
   name: string;
   shortcut: string;
@@ -13,12 +20,31 @@ export interface ShortcutConfig {
       provider_name: string;
       prompt: string;
     };
-    ToggleWindow?: {};
-    GetCursorPosition?: {};
-    GetSelectedText?: {};
-    PrintHello?: {};
+    ToggleWindow?: Record<string, never>;
+    GetCursorPosition?: Record<string, never>;
+    GetSelectedText?: Record<string, never>;
+    PrintHello?: Record<string, never>;
   };
 }
+
+export interface LLMConfig {
+  name: string;
+  provider: LLMProvider;
+  api_key: string;
+  model: string;
+  temperature: number;
+  max_tokens: number;
+}
+
+export type LLMProvider =
+  | "openai"
+  | "anthropic"
+  | "ollama"
+  | "deepseek"
+  | "xai"
+  | "phind"
+  | "groq"
+  | "google";
 
 export interface PromptResponse {
   prompt_name: string;
