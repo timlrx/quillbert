@@ -33,10 +33,10 @@ export function ShortcutItem({
   };
 
   return (
-    <div className="flex items-center">
+    <div className="flex items-center justify-between w-full">
       {isEditing ? (
         <>
-          <div className="flex gap-1 min-w-[120px]">
+          <div className="flex flex-wrap gap-1 min-w-[120px]">
             {currentKeys.length > 0 ? (
               renderKeys(currentKeys)
             ) : (
@@ -45,7 +45,7 @@ export function ShortcutItem({
               </span>
             )}
           </div>
-          <div className="flex gap-1 ml-2">
+          <div className="flex gap-1 ml-auto">
             <button
               onClick={onSave}
               className="px-2 py-0.5 text-xs rounded bg-blue-500 text-white hover:bg-blue-600 transition-colors
@@ -63,7 +63,7 @@ export function ShortcutItem({
         </>
       ) : (
         <>
-          <div className="flex gap-1">
+          <div className="flex flex-wrap gap-1">
             {shortcut.length > 0 ? (
               renderKeys(shortcut)
             ) : (
@@ -74,7 +74,7 @@ export function ShortcutItem({
           </div>
           <button
             onClick={onEdit}
-            className="px-2 py-0.5 text-xs rounded bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors ml-2"
+            className="px-2 py-0.5 text-xs rounded bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors ml-auto"
           >
             Edit
           </button>

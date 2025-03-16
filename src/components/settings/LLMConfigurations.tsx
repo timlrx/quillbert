@@ -5,6 +5,8 @@ import { LLMConfig } from "@/types";
 import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import Button from "@/components/ui/Button";
+import Card from "@/components/ui/Card";
+import { ConfigCard } from "@/components/ui/Card";
 
 interface LLMConfigurationsProps {
   configs: LLMConfig[];
@@ -149,11 +151,12 @@ const LLMConfigurations: React.FC<LLMConfigurationsProps> = ({
       )}
 
       {/* Configuration Form */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
-        <h3 className="text-sm font-medium text-gray-700 mb-3">
-          {editingIndex !== null ? "Edit Configuration" : "New Configuration"}
-        </h3>
-
+      <Card
+        title={
+          editingIndex !== null ? "Edit Configuration" : "New Configuration"
+        }
+        className="mb-6"
+      >
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <Input
@@ -243,7 +246,7 @@ const LLMConfigurations: React.FC<LLMConfigurationsProps> = ({
                 : "Add Configuration"}
           </Button>
         </div>
-      </div>
+      </Card>
 
       {/* Saved Configurations */}
       {configs.length > 0 && (
@@ -253,39 +256,36 @@ const LLMConfigurations: React.FC<LLMConfigurationsProps> = ({
           </h3>
           <div className="space-y-3 overflow-y-auto max-h-96">
             {configs.map((config, index) => (
-              <div
+              <ConfigCard
                 key={index}
-                className="flex items-center justify-between p-4 border rounded-lg bg-white hover:shadow-sm transition-shadow"
-              >
-                <div className="flex-1">
-                  <div className="font-medium text-sm">{config.name}</div>
-                  <div className="text-xs text-gray-500 mt-1">
-                    {config.provider} - {config.model}
-                  </div>
-                  <div className="text-xs text-gray-400 mt-0.5">
-                    Temperature: {config.temperature}, Max Tokens:{" "}
-                    {config.max_tokens}
-                  </div>
-                </div>
-                <div className="flex space-x-2">
-                  <Button
-                    onClick={() => handleEditConfig(index)}
-                    variant="ghost"
-                    size="sm"
-                    title="Edit"
-                    className="text-blue-500"
-                    leftIcon={<Edit2 className="h-4 w-4" />}
-                  />
-                  <Button
-                    onClick={() => handleDeleteConfig(index)}
-                    variant="ghost"
-                    size="sm"
-                    title="Delete"
-                    className="text-red-500"
-                    leftIcon={<Trash2 className="h-4 w-4" />}
-                  />
-                </div>
-              </div>
+                title={config.name}
+                provider={config.provider}
+                model={config.model}
+                config={{
+                  temperature: config.temperature,
+                  maxTokens: config.max_tokens,
+                }}
+                actions={
+                  <>
+                    <Button
+                      onClick={() => handleEditConfig(index)}
+                      variant="ghost"
+                      size="sm"
+                      title="Edit"
+                      className="text-blue-500"
+                      leftIcon={<Edit2 className="h-4 w-4" />}
+                    />
+                    <Button
+                      onClick={() => handleDeleteConfig(index)}
+                      variant="ghost"
+                      size="sm"
+                      title="Delete"
+                      className="text-red-500"
+                      leftIcon={<Trash2 className="h-4 w-4" />}
+                    />
+                  </>
+                }
+              />
             ))}
           </div>
         </div>

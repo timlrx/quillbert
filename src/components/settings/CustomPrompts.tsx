@@ -9,6 +9,8 @@ import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import Textarea from "@/components/ui/Textarea";
 import Button from "@/components/ui/Button";
+import Card from "@/components/ui/Card";
+import { PromptCard } from "@/components/ui/Card";
 
 interface CustomPromptsProps {
   prompts: CustomPromptConfig[];
@@ -151,11 +153,7 @@ const CustomPrompts: React.FC<CustomPromptsProps> = ({
       )}
 
       {/* Prompt Form */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
-        <h3 className="text-sm font-medium text-gray-700 mb-3">
-          {isEditing ? "Edit Prompt" : "New Prompt"}
-        </h3>
-
+      <Card title={isEditing ? "Edit Prompt" : "New Prompt"} className="mb-6">
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <Input
@@ -228,7 +226,7 @@ const CustomPrompts: React.FC<CustomPromptsProps> = ({
             {isEditing ? "Update Prompt" : "Add Prompt"}
           </Button>
         </div>
-      </div>
+      </Card>
 
       {/* List of saved prompts */}
       {prompts.length > 0 && (
@@ -238,36 +236,13 @@ const CustomPrompts: React.FC<CustomPromptsProps> = ({
           </h3>
           <div className="space-y-3 overflow-y-auto max-h-96">
             {prompts.map((prompt, index) => (
-              <div
+              <PromptCard
                 key={index}
-                className="border rounded-lg p-4 bg-white hover:shadow-sm transition-shadow"
-              >
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h4 className="text-sm font-medium">{prompt.name}</h4>
-                    <p className="text-xs text-gray-600 mt-1">
-                      Provider: {prompt.provider_name}
-                    </p>
-                    {prompt.shortcut && (
-                      <div className="flex items-center mt-2">
-                        <span className="text-xs text-gray-600 mr-2">
-                          Shortcut:
-                        </span>
-                        <div className="flex gap-1">
-                          {tauriToKeysArray(prompt.shortcut).map(
-                            (key, keyIndex) => (
-                              <kbd
-                                key={keyIndex}
-                                className="px-1.5 py-0.5 text-xs font-medium rounded shadow-sm bg-gray-100 border border-gray-300 text-gray-700"
-                              >
-                                {key}
-                              </kbd>
-                            ),
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                title={prompt.name}
+                provider={prompt.provider_name}
+                shortcutKeys={tauriToKeysArray(prompt.shortcut)}
+                template={prompt.prompt_template}
+                actions={
                   <div className="flex gap-2">
                     <Button
                       onClick={() => handleEditPrompt(index)}
@@ -287,13 +262,8 @@ const CustomPrompts: React.FC<CustomPromptsProps> = ({
                       isLoading={loading && editingIndex === index}
                     />
                   </div>
-                </div>
-                <div className="mt-3 bg-gray-50 p-3 rounded border border-gray-200 text-xs text-gray-700">
-                  <p className="whitespace-pre-wrap line-clamp-3">
-                    {prompt.prompt_template}
-                  </p>
-                </div>
-              </div>
+                }
+              />
             ))}
           </div>
         </div>

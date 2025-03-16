@@ -15,16 +15,11 @@ export interface CustomPromptConfig {
 export interface ShortcutConfig {
   name: string;
   shortcut: string;
-  command: {
-    Prompt?: {
-      provider_name: string;
-      prompt: string;
-    };
-    ToggleWindow?: Record<string, never>;
-    GetCursorPosition?: Record<string, never>;
-    GetSelectedText?: Record<string, never>;
-    PrintHello?: Record<string, never>;
-  };
+  command:
+    | "ToggleWindow"
+    | "GetCursorPosition"
+    | "GetSelectedText"
+    | "PasteOutput";
 }
 
 export interface LLMConfig {
