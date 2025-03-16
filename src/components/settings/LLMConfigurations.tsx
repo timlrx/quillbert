@@ -1,7 +1,10 @@
 import React, { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Edit2, Plus, Trash2, Loader2, X } from "lucide-react";
+import { Edit2, Plus, Trash2, X } from "lucide-react";
 import { LLMConfig } from "@/types";
+import Input from "@/components/ui/Input";
+import Select from "@/components/ui/Select";
+import Button from "@/components/ui/Button";
 
 interface LLMConfigurationsProps {
   configs: LLMConfig[];
@@ -123,13 +126,14 @@ const LLMConfigurations: React.FC<LLMConfigurationsProps> = ({
           LLM Configurations
         </h2>
         {editingIndex !== null && (
-          <button
+          <Button
             onClick={handleCancelEdit}
-            className="flex items-center text-xs text-gray-500 hover:text-gray-700"
+            variant="ghost"
+            size="sm"
+            leftIcon={<X className="w-3.5 h-3.5" />}
           >
-            <X className="w-3.5 h-3.5 mr-1" />
             Cancel Editing
-          </button>
+          </Button>
         )}
       </div>
 
@@ -152,119 +156,92 @@ const LLMConfigurations: React.FC<LLMConfigurationsProps> = ({
 
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Configuration Name
-              </label>
-              <input
-                type="text"
-                name="name"
-                value={currentConfig.name}
-                onChange={handleConfigChange}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                placeholder="Enter a unique name"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Provider
-              </label>
-              <select
-                name="provider"
-                value={currentConfig.provider}
-                onChange={handleConfigChange}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none"
-              >
-                <option value="openai">OpenAI</option>
-                <option value="anthropic">Anthropic</option>
-                <option value="ollama">Ollama</option>
-                <option value="deepseek">DeepSeek</option>
-                <option value="xai">XAI</option>
-                <option value="phind">Phind</option>
-                <option value="groq">Groq</option>
-                <option value="google">Google</option>
-              </select>
-            </div>
+            <Input
+              label="Configuration Name"
+              type="text"
+              name="name"
+              value={currentConfig.name}
+              onChange={handleConfigChange}
+              placeholder="Enter a unique name"
+            />
+            <Select
+              label="Provider"
+              name="provider"
+              value={currentConfig.provider}
+              onChange={handleConfigChange}
+            >
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Anthropic</option>
+              <option value="ollama">Ollama</option>
+              <option value="deepseek">DeepSeek</option>
+              <option value="xai">XAI</option>
+              <option value="phind">Phind</option>
+              <option value="groq">Groq</option>
+              <option value="google">Google</option>
+            </Select>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                API Key
-              </label>
-              <input
-                type="password"
-                name="api_key"
-                value={currentConfig.api_key}
-                onChange={handleConfigChange}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                placeholder="Enter API key"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Model
-              </label>
-              <input
-                type="text"
-                name="model"
-                value={currentConfig.model}
-                onChange={handleConfigChange}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                placeholder="e.g. gpt-4"
-              />
-            </div>
+            <Input
+              label="API Key"
+              type="password"
+              name="api_key"
+              value={currentConfig.api_key}
+              onChange={handleConfigChange}
+              placeholder="Enter API key"
+            />
+            <Input
+              label="Model"
+              type="text"
+              name="model"
+              value={currentConfig.model}
+              onChange={handleConfigChange}
+              placeholder="e.g. gpt-4"
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Temperature
-              </label>
-              <input
-                type="number"
-                name="temperature"
-                value={currentConfig.temperature}
-                onChange={handleConfigChange}
-                step="0.1"
-                min="0"
-                max="2"
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Max Tokens
-              </label>
-              <input
-                type="number"
-                name="max_tokens"
-                value={currentConfig.max_tokens}
-                onChange={handleConfigChange}
-                min="1"
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none"
-              />
-            </div>
+            <Input
+              label="Temperature"
+              type="number"
+              name="temperature"
+              value={currentConfig.temperature}
+              onChange={handleConfigChange}
+              step="0.1"
+              min="0"
+              max="2"
+              helperText="Controls randomness (0-2)"
+            />
+            <Input
+              label="Max Tokens"
+              type="number"
+              name="max_tokens"
+              value={currentConfig.max_tokens}
+              onChange={handleConfigChange}
+              min="1"
+              helperText="Maximum response length"
+            />
           </div>
 
-          <button
+          <Button
             onClick={handleSaveConfig}
-            disabled={loading}
-            className="w-full px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors focus:outline-none disabled:bg-blue-300 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 text-sm"
+            isLoading={loading}
+            variant="primary"
+            fullWidth
+            leftIcon={
+              editingIndex !== null ? (
+                <Edit2 className="h-4 w-4" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )
+            }
           >
-            {loading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : editingIndex !== null ? (
-              <Edit2 className="h-4 w-4" />
-            ) : (
-              <Plus className="h-4 w-4" />
-            )}
             {loading
               ? "Saving..."
               : editingIndex !== null
                 ? "Update Configuration"
                 : "Add Configuration"}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -291,20 +268,22 @@ const LLMConfigurations: React.FC<LLMConfigurationsProps> = ({
                   </div>
                 </div>
                 <div className="flex space-x-2">
-                  <button
+                  <Button
                     onClick={() => handleEditConfig(index)}
-                    className="p-1.5 text-blue-500 hover:bg-blue-50 rounded transition-colors"
+                    variant="ghost"
+                    size="sm"
                     title="Edit"
-                  >
-                    <Edit2 className="h-4 w-4" />
-                  </button>
-                  <button
+                    className="text-blue-500"
+                    leftIcon={<Edit2 className="h-4 w-4" />}
+                  />
+                  <Button
                     onClick={() => handleDeleteConfig(index)}
-                    className="p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors"
+                    variant="ghost"
+                    size="sm"
                     title="Delete"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                    className="text-red-500"
+                    leftIcon={<Trash2 className="h-4 w-4" />}
+                  />
                 </div>
               </div>
             ))}

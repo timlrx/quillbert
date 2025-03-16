@@ -5,6 +5,10 @@ import { CustomPromptConfig, LLMConfig } from "@/types";
 import { ShortcutItem } from "@/components/ShortcutItem";
 import { useShortcutEditor } from "@/hooks/useShortcutEditor";
 import { tauriToKeysArray, keysArrayToTauri } from "@/utils/keyboardUtils";
+import Input from "@/components/ui/Input";
+import Select from "@/components/ui/Select";
+import Textarea from "@/components/ui/Textarea";
+import Button from "@/components/ui/Button";
 
 interface CustomPromptsProps {
   prompts: CustomPromptConfig[];
@@ -29,6 +33,7 @@ const CustomPrompts: React.FC<CustomPromptsProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [error, setError] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
 
   const handleInputChange = (
     e: React.ChangeEvent<
@@ -50,6 +55,7 @@ const CustomPrompts: React.FC<CustomPromptsProps> = ({
 
   const handleDeletePrompt = async (index: number) => {
     try {
+      setLoading(true);
       // Create a new prompt with empty shortcut to effectively delete the shortcut binding
       const promptToDelete = {
         ...prompts[index],
@@ -60,8 +66,10 @@ const CustomPrompts: React.FC<CustomPromptsProps> = ({
 
       // Reload data
       await onUpdate();
+      setLoading(false);
     } catch (err) {
       setError(typeof err === "string" ? err : "Failed to delete prompt");
+      setLoading(false);
     }
   };
 
@@ -70,15 +78,24 @@ const CustomPrompts: React.FC<CustomPromptsProps> = ({
     if (!currentPrompt.provider_name.trim()) return "Provider is required";
     if (!currentPrompt.prompt_template.trim())
       return "Prompt template is required";
+    if (
+      prompts.some(
+        (p, idx) => p.name === currentPrompt.name && idx !== editingIndex,
+      )
+    )
+      return "Prompt name must be unique";
     return null;
   };
 
   const handleSavePrompt = async () => {
-    const error = validatePrompt();
-    if (error) {
-      setError(error);
+    const validationError = validatePrompt();
+    if (validationError) {
+      setError(validationError);
       return;
     }
+
+    setLoading(true);
+    setError("");
 
     try {
       await invoke("register_custom_prompt", { config: currentPrompt });
@@ -93,6 +110,8 @@ const CustomPrompts: React.FC<CustomPromptsProps> = ({
       await onUpdate();
     } catch (err) {
       setError(typeof err === "string" ? err : "Failed to save prompt");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -108,13 +127,14 @@ const CustomPrompts: React.FC<CustomPromptsProps> = ({
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-medium text-gray-800">Custom Prompts</h2>
         {isEditing && (
-          <button
+          <Button
             onClick={handleCancelEdit}
-            className="flex items-center text-xs text-gray-500 hover:text-gray-700"
+            variant="ghost"
+            size="sm"
+            leftIcon={<X className="w-3.5 h-3.5" />}
           >
-            <X className="w-3.5 h-3.5 mr-1" />
             Cancel Editing
-          </button>
+          </Button>
         )}
       </div>
 
@@ -138,37 +158,27 @@ const CustomPrompts: React.FC<CustomPromptsProps> = ({
 
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Prompt Name
-              </label>
-              <input
-                type="text"
-                name="name"
-                value={currentPrompt.name}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                placeholder="e.g., Summarize Text"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Provider
-              </label>
-              <select
-                name="provider_name"
-                value={currentPrompt.provider_name}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none"
-              >
-                <option value="">Select a provider</option>
-                {llmConfigs.map((config, index) => (
-                  <option key={index} value={config.name}>
-                    {config.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <Input
+              label="Prompt Name"
+              type="text"
+              name="name"
+              value={currentPrompt.name}
+              onChange={handleInputChange}
+              placeholder="e.g., Summarize Text"
+            />
+            <Select
+              label="Provider"
+              name="provider_name"
+              value={currentPrompt.provider_name}
+              onChange={handleInputChange}
+            >
+              <option value="">Select a provider</option>
+              {llmConfigs.map((config, index) => (
+                <option key={index} value={config.name}>
+                  {config.name}
+                </option>
+              ))}
+            </Select>
           </div>
 
           <div>
@@ -192,34 +202,31 @@ const CustomPrompts: React.FC<CustomPromptsProps> = ({
             </p>
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-              Prompt Template
-            </label>
-            <textarea
-              name="prompt_template"
-              value={currentPrompt.prompt_template}
-              onChange={handleInputChange}
-              rows={5}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none"
-              placeholder="Enter your prompt template..."
-            ></textarea>
-            <p className="text-xs text-gray-500 mt-1">
-              Use {"{{selectedText}}"} as a placeholder for the selected text
-            </p>
-          </div>
+          <Textarea
+            label="Prompt Template"
+            name="prompt_template"
+            value={currentPrompt.prompt_template}
+            onChange={handleInputChange}
+            rows={5}
+            placeholder="Enter your prompt template..."
+            helperText="Use {{selectedText}} as a placeholder for the selected text"
+          />
 
-          <button
+          <Button
             onClick={handleSavePrompt}
-            className="w-full px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors focus:outline-none flex items-center justify-center gap-1.5 text-sm"
+            isLoading={loading}
+            variant="primary"
+            fullWidth
+            leftIcon={
+              isEditing ? (
+                <Save className="h-4 w-4" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )
+            }
           >
-            {isEditing ? (
-              <Save className="h-4 w-4" />
-            ) : (
-              <Plus className="h-4 w-4" />
-            )}
             {isEditing ? "Update Prompt" : "Add Prompt"}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -262,20 +269,23 @@ const CustomPrompts: React.FC<CustomPromptsProps> = ({
                     )}
                   </div>
                   <div className="flex gap-2">
-                    <button
+                    <Button
                       onClick={() => handleEditPrompt(index)}
-                      className="p-1.5 text-blue-500 hover:bg-blue-50 rounded transition-colors"
+                      variant="ghost"
+                      size="sm"
                       title="Edit"
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </button>
-                    <button
+                      className="text-blue-500"
+                      leftIcon={<Edit2 className="h-4 w-4" />}
+                    />
+                    <Button
                       onClick={() => handleDeletePrompt(index)}
-                      className="p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors"
+                      variant="ghost"
+                      size="sm"
                       title="Delete"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                      className="text-red-500"
+                      leftIcon={<Trash2 className="h-4 w-4" />}
+                      isLoading={loading && editingIndex === index}
+                    />
                   </div>
                 </div>
                 <div className="mt-3 bg-gray-50 p-3 rounded border border-gray-200 text-xs text-gray-700">

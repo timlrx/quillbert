@@ -8,7 +8,7 @@ import NotificationHeader from "@/components/NotificationHeader";
 import PromptList from "@/components/PromptList";
 import SelectedTextPanel from "@/components/SelectedTextPanel";
 import ResponsePanel from "@/components/ResponsePanel";
-import "./App.css";
+import "./index.css";
 
 const PromptInterface: React.FC = () => {
   const [customPrompts, setCustomPrompts] = useState<CustomPrompt[]>([]);

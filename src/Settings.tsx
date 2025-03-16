@@ -7,12 +7,14 @@ import {
   Sliders,
   MessageSquare,
   Settings as SettingsIcon,
+  RefreshCw,
 } from "lucide-react";
 import SystemShortcuts from "@/components/settings/SystemShortcuts";
 import LLMConfigurations from "@/components/settings/LLMConfigurations";
 import CustomPrompts from "@/components/settings/CustomPrompts";
 import { ShortcutConfig, LLMConfig, CustomPromptConfig } from "@/types";
-import "./App.css";
+import Button from "@/components/ui/Button";
+import "./index.css";
 
 type TabType = "shortcuts" | "llm" | "prompts";
 
@@ -81,9 +83,10 @@ const Settings: React.FC = () => {
         flex items-center w-full px-3 py-2 mb-1 rounded text-xs
         ${
           activeTab === id
-            ? "bg-blue-50 text-blue-700"
+            ? "bg-blue-50 text-blue-700 font-medium"
             : "text-gray-600 hover:bg-gray-50"
         }
+        transition-colors
       `}
     >
       <div className="mr-2">{icon}</div>
@@ -95,21 +98,26 @@ const Settings: React.FC = () => {
   const renderContent = () => {
     if (loading) {
       return (
-        <div className="flex items-center justify-center h-full">
-          <Loader2 className="h-5 w-5 animate-spin text-blue-500 mr-2" />
-          <span className="text-sm text-gray-500">Loading data...</span>
+        <div className="flex flex-col items-center justify-center h-full">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-500 mb-3" />
+          <span className="text-sm text-gray-500">Loading settings...</span>
         </div>
       );
     }
 
     if (error) {
       return (
-        <div className="p-4">
-          <div className="bg-red-50 border border-red-200 text-red-500 text-xs p-3 rounded mb-3">
-            {error}
-            <button onClick={loadData} className="ml-2 text-red-700 underline">
+        <div className="p-8 flex flex-col items-center">
+          <div className="bg-red-50 border border-red-200 text-red-600 p-4 rounded-lg w-full max-w-md text-center mb-4">
+            <p className="font-medium mb-2">Error Loading Settings</p>
+            <p className="text-sm mb-4">{error}</p>
+            <Button
+              onClick={loadData}
+              size="sm"
+              leftIcon={<RefreshCw className="h-3.5 w-3.5" />}
+            >
               Retry
-            </button>
+            </Button>
           </div>
         </div>
       );
@@ -136,9 +144,9 @@ const Settings: React.FC = () => {
   return (
     <div className="flex h-screen bg-white">
       {/* Sidebar */}
-      <div className="w-48 border-r border-gray-200 p-3">
-        <div className="flex items-center mb-4 px-2">
-          <SettingsIcon className="w-4 h-4 mr-2 text-gray-500" />
+      <div className="w-48 border-r border-gray-200 p-3 bg-gray-50">
+        <div className="flex items-center mb-4 p-2 border-b border-gray-200 pb-3">
+          <SettingsIcon className="w-4 h-4 mr-2 text-gray-600" />
           <h1 className="text-sm font-medium text-gray-700">Settings</h1>
         </div>
 
