@@ -73,18 +73,6 @@ fn handle_shortcut_commands<R: Runtime>(app: &AppHandle<R>, command: &CommandTyp
             }
             commands::toggle_window(app).unwrap();
         }
-        CommandType::GetCursorPosition => {
-            let pos = commands::get_cursor_position(app).unwrap();
-            println!("App cursor position: {:?}", pos);
-        }
-        CommandType::GetSelectedText => match commands::get_selected_text(app) {
-            Ok(text) => {
-                println!("Selected text: {}", text);
-            }
-            Err(e) => {
-                println!("Error getting selected text: {}", e);
-            }
-        },
         CommandType::PasteOutput => {
             let state = app.state::<AppState>();
             let response_opt = state.last_response.blocking_read();

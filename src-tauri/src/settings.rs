@@ -31,8 +31,6 @@ pub struct ShortcutConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum CommandType {
     ToggleWindow,
-    GetCursorPosition,
-    GetSelectedText,
     PasteOutput,
     Prompt {
         provider_name: String,
@@ -87,16 +85,6 @@ impl Default for Settings {
                     name: "Paste Output".to_string(),
                     shortcut: "cmd+shift+h".to_string(),
                     command: CommandType::PasteOutput,
-                },
-                ShortcutConfig {
-                    name: "Get Cursor Position".to_string(),
-                    shortcut: "shift+k".to_string(),
-                    command: CommandType::GetCursorPosition,
-                },
-                ShortcutConfig {
-                    name: "Get Selected Text".to_string(),
-                    shortcut: "shift+j".to_string(),
-                    command: CommandType::GetSelectedText,
                 },
                 ShortcutConfig {
                     name: "Fix Grammar".to_string(),

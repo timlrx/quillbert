@@ -15,11 +15,7 @@ export interface CustomPromptConfig {
 export interface ShortcutConfig {
   name: string;
   shortcut: string;
-  command:
-    | "ToggleWindow"
-    | "GetCursorPosition"
-    | "GetSelectedText"
-    | "PasteOutput";
+  command: "ToggleWindow" | "PasteOutput";
 }
 
 export interface LLMConfig {
